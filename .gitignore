@@ -26,6 +26,55 @@ share/python-wheels/
 *.egg
 MANIFEST
 
+# Claude Code
+.claude/
+claude.md
+
+# Claude-generated documentation files
+*FIXES_SUMMARY.md
+*IMPLEMENTATION_SUMMARY.md
+ADVANCED_MEMORY_SYSTEM.md
+AMAZING_NEUROMANCER.md
+ASYNC_ISSUE_FIXED.md
+ENHANCED_CHAT_DEMO.md
+FUNCTIONALITY_STATUS.md
+HOW_TO_USE_*.md
+MEMORY_SYSTEM_VERIFICATION.md
+MESSAGE_CONTEXT_FIX.md
+
+# Application data
+.neuromancer/
+data/
+chromadb/
+logs/
+*.db
+*.sqlite
+*.sqlite3
+
+# Environment variables
+.env.local
+.env.*.local
+
+# IDEs
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+.AppleDouble
+.LSOverride
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+.directory
+.Trash-*
+
+# Kivy
+*.kv.bak
+
 # PyInstaller
 #  Usually these files are written by a python script from a template
 #  before PyInstaller builds the exe, so as to inject date/other infos into it.
@@ -174,9 +223,9 @@ cython_debug/
 .abstra/
 
 # Visual Studio Code
-#  Visual Studio Code specific template is maintained in a separate VisualStudioCode.gitignore 
+#  Visual Studio Code specific template is maintained in a separate VisualStudioCode.gitignore
 #  that can be found at https://github.com/github/gitignore/blob/main/Global/VisualStudioCode.gitignore
-#  and can be added to the global gitignore or merged into this file. However, if you prefer, 
+#  and can be added to the global gitignore or merged into this file. However, if you prefer,
 #  you could uncomment the following to ignore the enitre vscode folder
 # .vscode/
 
