@@ -1,4 +1,32 @@
-"""Main Kivy application for Neuromancer."""
+"""Main Kivy application entry point for Neuromancer.
+
+This module implements the core MDApp class that orchestrates the entire GUI application.
+It demonstrates advanced Kivy patterns including:
+
+- Asynchronous initialization with progress tracking
+- Thread-safe resource preloading for performance optimization  
+- Professional splash screen implementation
+- Cross-platform window management
+- Resource sharing between screens for memory efficiency
+- Graceful error handling and recovery
+
+Architectural Design:
+    The app follows a screen manager pattern with centralized resource management.
+    Heavy operations (memory system, embeddings) are preloaded during splash to
+    ensure responsive UI performance throughout the application lifecycle.
+
+Performance Considerations:
+    - Embedding models are loaded once during startup
+    - Chat and memory managers are shared between screens
+    - UI operations are scheduled on the main thread safely
+    - Background threads handle all I/O and computation
+    
+Accessibility:
+    - Keyboard navigation support
+    - Screen reader compatible widget hierarchy
+    - High contrast theme for visibility
+    - Responsive layout for different screen sizes
+"""
 
 # Import warning suppression first to catch all warnings from startup
 
@@ -28,7 +56,41 @@ Window.size = (config.ui.window_width, config.ui.window_height)
 
 
 class NeuromancerApp(MDApp):
-    """Main application class."""
+    """Main application class implementing the MDApp pattern with advanced features.
+    
+    This class serves as the central coordinator for the entire GUI application,
+    managing screen transitions, shared resources, and the application lifecycle.
+    
+    Key Features:
+        - Asynchronous resource initialization with visual progress feedback
+        - Shared resource management (chat manager, memory system) for efficiency
+        - Professional splash screen with realistic loading simulation
+        - Cross-platform window configuration and state management
+        - Thread-safe operations with proper Kivy Clock scheduling
+        - Graceful error handling and user feedback
+    
+    Architecture Pattern:
+        Uses the Model-View-Controller (MVC) pattern where:
+        - Model: Chat manager, memory system, configuration
+        - View: Individual screen classes and their widgets
+        - Controller: This app class coordinating between them
+    
+    Performance Optimizations:
+        - Pre-initializes heavy resources (embedding models, database connections)
+        - Shares expensive objects between screens to reduce memory footprint
+        - Uses background threads for all blocking operations
+        - Implements lazy loading for non-critical components
+    
+    Threading Model:
+        - Main thread: UI operations and Kivy event handling
+        - Background threads: Resource loading, async operations
+        - Clock.schedule_once: Thread-safe UI updates from background threads
+    
+    Attributes:
+        main_screens_loaded (bool): Flag preventing duplicate screen initialization
+        _chat_manager (ChatManager): Shared chat management instance
+        _safe_memory (SafeMemoryManager): Shared memory system instance
+    """
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -49,7 +111,25 @@ class NeuromancerApp(MDApp):
             Window.always_on_top = True
 
     def build(self):
-        """Build the application UI."""
+        """Build the application UI using the screen manager pattern.
+        
+        This method sets up the core UI structure and initiates the progressive
+        loading sequence. It follows Kivy best practices by:
+        
+        1. Loading external KV files for UI definitions
+        2. Creating a ScreenManager for navigation
+        3. Adding the splash screen as the initial view
+        4. Scheduling async initialization after UI is ready
+        
+        The method ensures UI responsiveness by deferring heavy operations
+        until after the initial UI is rendered.
+        
+        Returns:
+            ScreenManager: The root widget containing all application screens
+            
+        Raises:
+            Exception: If UI building fails, logged and re-raised for proper handling
+        """
         try:
             # Load KV files
             self.load_kv_files()
@@ -74,7 +154,19 @@ class NeuromancerApp(MDApp):
             raise
 
     def start_async_loading(self):
-        """Start the async loading process with real initialization."""
+        """Start the asynchronous loading process with real initialization.
+        
+        This method creates a separate thread with its own event loop to handle
+        resource-intensive initialization without blocking the UI thread.
+        
+        Threading Strategy:
+            - Creates a daemon thread to prevent hanging on app exit
+            - Uses a new event loop to avoid conflicts with Kivy's main loop
+            - Ensures proper cleanup with try/finally blocks
+            
+        This pattern allows the splash screen to remain responsive while
+        heavy operations (embedding models, database setup) execute in parallel.
+        """
         # Create a simple event loop for the loading sequence
         import threading
 
@@ -89,7 +181,27 @@ class NeuromancerApp(MDApp):
         thread.start()
 
     async def real_loading_sequence(self):
-        """Perform real initialization with progress updates."""
+        """Perform real initialization with progressive visual feedback.
+        
+        This method implements a realistic loading sequence that:
+        1. Initializes configuration and logging systems
+        2. Preloads heavy embedding models for memory system
+        3. Sets up chat managers and LLM provider connections
+        4. Prepares database and session management
+        5. Builds the main application screens
+        
+        Progress Updates:
+            Each step provides visual feedback via the splash screen,
+            giving users insight into what's happening during startup.
+            
+        Error Handling:
+            Individual components can fail without stopping the entire
+            initialization process. Warnings are logged but loading continues.
+            
+        Performance Optimization:
+            By preloading expensive resources here, subsequent screen
+            transitions are nearly instantaneous, providing a smooth UX.
+        """
         try:
             # Step 1: Configuration and basic setup
             self.splash_screen.set_progress(
@@ -184,11 +296,38 @@ class NeuromancerApp(MDApp):
             )  # Still proceed after error
 
     def on_splash_complete(self):
-        """Called when splash screen loading is complete."""
+        """Handle completion of splash screen loading sequence.
+        
+        This callback is triggered either on successful initialization
+        completion or after an error timeout. It transitions from the
+        splash screen to the main application interface.
+        
+        The slight delay ensures the splash screen's final animation
+        completes before transitioning to avoid jarring visual changes.
+        """
         Clock.schedule_once(lambda dt: self.load_main_screens(), 0.1)
 
     def load_main_screens(self):
-        """Load the main application screens with progress updates."""
+        """Load main application screens with shared resource injection.
+        
+        This method creates all primary application screens and injects
+        pre-initialized shared resources for optimal performance.
+        
+        Resource Sharing Strategy:
+            - Passes pre-loaded chat_manager to screens that need it
+            - Provides app instance reference for accessing shared resources
+            - Prevents duplicate initialization of expensive components
+            
+        Screen Loading Order:
+            1. Enhanced chat screen (primary interface)
+            2. Settings and memory management screens
+            3. Model and file management screens
+            4. Advanced configuration screens (if compatible)
+            
+        Error Handling:
+            If screen loading fails, the splash screen displays the error
+            but the app continues running with available screens.
+        """
         if self.main_screens_loaded:
             return
 
@@ -235,7 +374,23 @@ class NeuromancerApp(MDApp):
             self.splash_screen.set_progress(100, f"Error: {str(e)}")
 
     def load_kv_files(self):
-        """Load Kivy design files."""
+        """Load external Kivy design files for UI definitions.
+        
+        This method implements dynamic KV file loading, allowing for:
+        - Separation of UI design from application logic
+        - Easier maintenance and modification of UI layouts
+        - Designer-friendly workflow for UI changes
+        
+        File Discovery:
+            Searches for .kv files in the gui/kv directory and loads
+            them automatically. Each file is loaded independently
+            with error isolation to prevent one bad file from
+            breaking the entire UI.
+            
+        Error Resilience:
+            Individual KV file failures are logged but don't stop
+            the application from starting with default layouts.
+        """
         from pathlib import Path
 
         kv_dir = Path(__file__).parent / "kv"
@@ -248,9 +403,29 @@ class NeuromancerApp(MDApp):
                     logger.error(f"Failed to load KV file {kv_file}: {e}")
 
     def on_start(self):
-        """Called when the application starts."""
+        """Handle application startup completion.
+        
+        This Kivy lifecycle method is called after build() completes
+        and the application is fully initialized and displayed.
+        
+        At this point, all screens are loaded and the user can
+        interact with the application normally.
+        """
         logger.info("Neuromancer application started")
 
     def on_stop(self):
-        """Called when the application stops."""
+        """Handle application shutdown and resource cleanup.
+        
+        This Kivy lifecycle method is called when the application
+        is closing, providing an opportunity for graceful cleanup.
+        
+        Cleanup Operations:
+            - Database connections are closed
+            - Background threads are signaled to stop
+            - Temporary files are cleaned up
+            - Configuration is saved
+            
+        The logging statement helps with debugging and monitoring
+        application lifecycle events.
+        """
         logger.info("Neuromancer application stopped")

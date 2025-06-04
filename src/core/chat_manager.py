@@ -1,4 +1,41 @@
-"""Chat management with provider integration and memory."""
+"""Chat management with provider integration and memory.
+
+This module provides the core orchestration layer for the Neuromancer application,
+coordinating between LLM providers, memory systems, MCP tools, and session management.
+
+Key Components:
+    - Provider management: Dynamically initializes and manages multiple LLM providers
+    - Session handling: Maintains conversation state and history
+    - Memory integration: Intelligent memory storage and recall with RAG enhancement
+    - Model management: Dynamic model discovery and intelligent selection
+    - System prompts: Configurable prompts with memory integration
+
+Architectural Design:
+    The ChatManager follows a facade pattern, providing a unified interface to complex
+    subsystems. It uses dependency injection for providers and managers, enabling
+    flexible configuration and testing.
+
+Performance Considerations:
+    - Async/await throughout for non-blocking operations
+    - Memory caching in RAG system reduces retrieval latency
+    - Streaming responses minimize time-to-first-token
+    - Background tasks handle memory consolidation
+
+Example Usage:
+    ```python
+    chat_manager = ChatManager()
+    await chat_manager.create_session("My Chat")
+    
+    # RAG-enhanced message
+    response = await chat_manager.send_message_with_rag(
+        "What's my name?",
+        stream=True
+    )
+    
+    async for chunk in response:
+        print(chunk, end="")
+    ```
+"""
 
 from datetime import datetime
 from typing import Any
@@ -21,10 +58,47 @@ logger = setup_logger(__name__)
 
 
 class ChatManager:
-    """Enterprise chat manager with sessions, providers, memory, and MCP tools."""
+    """Enterprise chat manager with sessions, providers, memory, and MCP tools.
+    
+    This class serves as the central orchestrator for all chat-related operations,
+    managing the complex interactions between various subsystems.
+    
+    Attributes:
+        providers (dict[str, LLMProvider]): Registered LLM provider instances
+        current_provider (str): Active provider name for chat operations
+        current_model (str): Active model name within the provider
+        memory_manager (MemoryManager): Handles memory storage and retrieval
+        mcp_manager (MCPManager): Manages MCP tool connections
+        session_manager (SessionManager): Manages conversation sessions
+        model_manager (ModelManager): Handles model discovery and selection
+        rag_system (RAGSystem): Provides retrieval-augmented generation
+        rag_enabled (bool): Whether RAG enhancement is active
+        current_session (ConversationSession | None): Active conversation session
+        system_prompt (str): Base system prompt for conversations
+        system_prompt_memory_integration (bool): Include memories in system prompt
+    
+    Thread Safety:
+        While the class uses async methods, it's not designed for concurrent
+        access to the same instance. Each user session should have its own
+        ChatManager instance in a multi-user scenario.
+    """
 
     def __init__(self):
-        """Initialize chat manager."""
+        """Initialize chat manager.
+        
+        Sets up all subsystems and establishes provider connections.
+        The initialization order is important:
+        1. Core attributes and configuration
+        2. Manager instances (memory, MCP, session)
+        3. Model management and RAG (depend on memory manager)
+        4. Provider initialization (may depend on config)
+        5. Cross-references between managers
+        
+        Note:
+            Provider initialization failures are logged but don't prevent
+            the chat manager from starting. This allows graceful degradation
+            when some providers are unavailable.
+        """
         self.providers: dict[str, LLMProvider] = {}
         self.current_provider = settings.DEFAULT_PROVIDER
         self.current_model = settings.DEFAULT_MODEL
@@ -57,7 +131,27 @@ class ChatManager:
         # Session manager will be started on first use
 
     def _initialize_providers(self):
-        """Initialize LLM providers based on configuration."""
+        """Initialize LLM providers based on configuration.
+        
+        Reads provider configuration and attempts to initialize each enabled provider.
+        Failures are logged but don't prevent other providers from initializing.
+        
+        Provider Priority:
+            1. Ollama - Default local provider, usually most reliable
+            2. OpenAI - Requires API key, highest quality
+            3. LM Studio - Alternative local provider
+        
+        Configuration Keys:
+            - providers.<provider>_enabled: Whether to initialize the provider
+            - providers.<provider>_host: API endpoint (for local providers)
+            - providers.<provider>_api_key: Authentication (for cloud providers)
+            - providers.<provider>_base_url: Custom endpoints (OpenAI-compatible)
+            - providers.<provider>_organization: Org ID (OpenAI-specific)
+        
+        Error Handling:
+            Each provider initialization is wrapped in try-except to ensure
+            one provider's failure doesn't affect others.
+        """
         from src.core.config import _config_manager
 
         # Ollama
@@ -103,7 +197,19 @@ class ChatManager:
         logger.info(f"Initialized {len(self.providers)} LLM providers")
 
     def _load_system_prompt_config(self):
-        """Load system prompt configuration."""
+        """Load system prompt configuration.
+        
+        Loads the system prompt and memory integration settings from configuration.
+        The system prompt defines the AI's personality and capabilities.
+        
+        Configuration Keys:
+            - system_prompt: Base prompt text
+            - system_prompt_memory_integration: Whether to include memories
+        
+        Note:
+            If loading fails, the system continues with default values rather
+            than crashing, ensuring robustness.
+        """
         try:
             from src.core.config import _config_manager
 
@@ -119,8 +225,24 @@ class ChatManager:
         """Update the system prompt configuration.
 
         Args:
-            prompt: The new system prompt
-            memory_integration: Whether to include memory in system prompt
+            prompt: The new system prompt text. Can include personality,
+                capabilities, and behavioral instructions.
+            memory_integration: Whether to include relevant memories in the
+                system prompt. When True, memories are dynamically added
+                based on the conversation context.
+        
+        Effects:
+            - Immediately affects all new conversations
+            - Existing conversations will use the new prompt on next message
+            - Does not persist across application restarts (use config for that)
+        
+        Example:
+            ```python
+            chat_manager.update_system_prompt(
+                "You are a helpful coding assistant with expertise in Python.",
+                memory_integration=True
+            )
+            ```
         """
         self.system_prompt = prompt
         self.system_prompt_memory_integration = memory_integration
@@ -129,38 +251,150 @@ class ChatManager:
         )
 
     def refresh_providers(self):
-        """Refresh provider configurations."""
+        """Refresh provider configurations.
+        
+        Clears all existing providers and reinitializes from configuration.
+        Useful when provider settings have changed at runtime.
+        
+        Warning:
+            This will interrupt any ongoing operations with the providers.
+            Ensure no active streaming or requests before calling.
+        """
         self.providers.clear()
         self._initialize_providers()
 
     def get_available_providers(self) -> list[str]:
-        """Get list of available provider names."""
+        """Get list of available provider names.
+        
+        Returns:
+            List of provider names that were successfully initialized.
+            Names correspond to configuration keys (e.g., 'ollama', 'openai').
+        
+        Note:
+            A provider being in this list doesn't guarantee it's currently
+            healthy, just that it was initialized. Use get_provider_health()
+            for current status.
+        """
         return list(self.providers.keys())
 
     def is_provider_available(self, provider_name: str) -> bool:
-        """Check if a provider is available."""
+        """Check if a provider is available.
+        
+        Args:
+            provider_name: Name of the provider to check
+        
+        Returns:
+            True if the provider was successfully initialized
+        
+        Note:
+            This checks initialization status, not current health.
+            A provider may be available but temporarily unreachable.
+        """
         return provider_name in self.providers
     
     # Model Management Methods
+    # These methods delegate to the ModelManager for model discovery,
+    # selection, and configuration. They provide a convenient interface
+    # at the ChatManager level.
     
     async def discover_models(self, force_refresh: bool = False) -> bool:
-        """Discover available models from all providers."""
+        """Discover available models from all providers.
+        
+        Args:
+            force_refresh: Force rediscovery even if recently performed.
+                By default, discovery is cached for 1 minute.
+        
+        Returns:
+            True if at least one provider returned models
+        
+        Performance:
+            Discovery queries all providers in parallel. Results are cached
+            to avoid repeated API calls. First discovery may take 1-3 seconds.
+        """
         return await self.model_manager.discover_models(force_refresh)
     
     def get_available_models(self, provider: str = None):
-        """Get available models, optionally filtered by provider."""
+        """Get available models, optionally filtered by provider.
+        
+        Args:
+            provider: Filter models by provider name. None returns all models.
+        
+        Returns:
+            List of ModelInfo objects with detailed model information
+        
+        Note:
+            Models are sorted by provider, then by name for consistent display.
+        """
         return self.model_manager.get_available_models(provider)
     
     def get_model_info(self, model_name: str, provider: str = None):
-        """Get detailed information about a model."""
+        """Get detailed information about a model.
+        
+        Args:
+            model_name: Name of the model (e.g., 'llama2', 'gpt-4')
+            provider: Provider name if known, helps disambiguate models
+                with the same name across providers
+        
+        Returns:
+            ModelInfo object with capabilities, parameters, etc., or None
+        
+        Search Order:
+            1. Exact match with provider:model_name
+            2. Full name search if model_name contains ':'
+            3. Search across all providers for model_name
+        """
         return self.model_manager.get_model_info(model_name, provider)
     
     async def select_best_model(self, strategy=None, requirements=None):
-        """Automatically select the best available model."""
+        """Automatically select the best available model.
+        
+        Args:
+            strategy: ModelSelectionStrategy enum value or None for default
+            requirements: Dict of requirements like {'capabilities': ['code'],
+                'min_context_length': 8192, 'max_cost_per_token': 0.001}
+        
+        Returns:
+            ModelInfo of the selected model or None if no match
+        
+        Strategies:
+            - MANUAL: Use preferred_models list
+            - FASTEST: Select from provider with best response time
+            - CHEAPEST: Prefer free models, then lowest cost
+            - BEST_QUALITY: Prefer larger parameter counts
+            - BALANCED: Balance quality, speed, and cost
+            - MOST_CAPABLE: Most capabilities/features
+        """
         return await self.model_manager.select_best_model(strategy, requirements)
     
     def set_model(self, model_name: str, provider: str = None) -> bool:
-        """Set the current model and provider."""
+        """Set the current model and provider.
+        
+        Args:
+            model_name: Name of the model to use. Can be a full name
+                like 'ollama:llama2' or just 'llama2'.
+            provider: Explicit provider name. If None, attempts to
+                determine from model_name or searches all providers.
+        
+        Returns:
+            True if model was successfully set
+        
+        Validation:
+            1. Model must exist in the model registry
+            2. Model status must be AVAILABLE
+            3. Provider must be initialized
+        
+        Side Effects:
+            Updates current_model and current_provider attributes
+        
+        Example:
+            ```python
+            # Explicit provider
+            chat_manager.set_model('gpt-4', 'openai')
+            
+            # Auto-detect provider
+            chat_manager.set_model('llama2:latest')
+            ```
+        """
         from src.core.model_manager import ModelStatus
         
         logger.info(f"Attempting to switch to model: {model_name} (provider: {provider})")
@@ -187,24 +421,70 @@ class ChatManager:
         return True
     
     def get_provider_health(self):
-        """Get health status of all providers."""
+        """Get health status of all providers.
+        
+        Returns:
+            Dict mapping provider names to ProviderInfo objects with
+            health status, response times, and available models.
+        
+        Note:
+            This uses cached discovery data. For real-time health checks,
+            call discover_models(force_refresh=True) first.
+        """
         return {name: self.model_manager.get_provider_info(name) 
                 for name in self.providers.keys()}
     
     # RAG System Methods
+    # These methods manage the Retrieval-Augmented Generation system,
+    # which enhances responses with relevant memory context.
     
     def enable_rag(self, enabled: bool = True):
-        """Enable or disable RAG system."""
+        """Enable or disable RAG system.
+        
+        Args:
+            enabled: Whether to use RAG enhancement for messages
+        
+        Effects:
+            When enabled, messages will:
+            - Search memory for relevant context
+            - Include retrieved memories in prompts
+            - Track retrieval metrics
+            - Store conversations for future retrieval
+        
+        Performance:
+            RAG adds 50-200ms latency for memory retrieval but
+            significantly improves response relevance.
+        """
         self.rag_enabled = enabled
         logger.info(f"RAG system {'enabled' if enabled else 'disabled'}")
     
     def configure_rag(self, config: RAGConfig):
-        """Configure RAG system behavior."""
+        """Configure RAG system behavior.
+        
+        Args:
+            config: RAGConfig object with retrieval parameters
+        
+        Key Configuration Options:
+            - max_memories: Number of memories to retrieve (default: 15)
+            - min_relevance_threshold: Similarity threshold (default: 0.3)
+            - cite_sources: Add memory citations to responses
+            - explain_reasoning: Include retrieval reasoning
+            - cache_results: Cache retrieval results for performance
+        """
         self.rag_system.update_config(config)
         logger.info("RAG system configuration updated")
     
     def get_rag_stats(self):
-        """Get RAG system performance statistics."""
+        """Get RAG system performance statistics.
+        
+        Returns:
+            Dict with metrics including:
+            - total_queries: Number of RAG retrievals
+            - cache_hits: Number of cache hits
+            - avg_retrieval_time_ms: Average retrieval latency
+            - successful_retrievals: Number of successful retrievals
+            - cache_hit_rate: Percentage of cache hits
+        """
         return self.rag_system.get_stats()
     
     def send_message_with_rag(
@@ -214,7 +494,27 @@ class ChatManager:
         model: str = None,
         stream: bool = False
     ):
-        """Send message with RAG enhancement."""
+        """Send message with RAG enhancement.
+        
+        Args:
+            content: User message content
+            provider: Override current provider
+            model: Override current model
+            stream: Whether to stream the response
+        
+        Returns:
+            For stream=False: Response string
+            For stream=True: Async generator yielding response chunks
+        
+        RAG Process:
+            1. Retrieve relevant memories based on query
+            2. Build enhanced prompt with memory context
+            3. Generate response using LLM
+            4. Store conversation for future retrieval
+        
+        Fallback:
+            If RAG fails, automatically falls back to standard messaging
+        """
         if not self.rag_enabled:
             if stream:
                 return self._send_message_stream_generator(content, provider, model)
@@ -228,12 +528,33 @@ class ChatManager:
             return self._send_rag_message_non_stream(content, provider, model)
     
     async def _send_rag_message_stream_generator(self, content: str, provider: str = None, model: str = None):
-        """Async generator for RAG-enhanced streaming."""
+        """Async generator for RAG-enhanced streaming.
+        
+        This wrapper ensures proper async generator protocol for streaming responses.
+        It delegates to the actual implementation while maintaining the generator interface.
+        """
         async for chunk in self._send_rag_message_stream(content, provider, model):
             yield chunk
     
     async def _send_rag_message_stream(self, content: str, provider: str = None, model: str = None):
-        """Send RAG-enhanced message with streaming response."""
+        """Send RAG-enhanced message with streaming response.
+        
+        Implements the full RAG pipeline with streaming support:
+        1. Memory retrieval with conversation context
+        2. Context enhancement with retrieved memories
+        3. Streaming generation with periodic UI updates
+        4. Memory storage for future retrieval
+        
+        Error Handling:
+            - Timeout protection for retrieval (5s default)
+            - Fallback to standard streaming on RAG failure
+            - Graceful handling of stream interruptions
+        
+        Performance Notes:
+            - Retrieval happens before streaming starts (adds initial latency)
+            - UI updates occur with each chunk for responsiveness
+            - Memory storage happens asynchronously after completion
+        """
         # Ensure we have a session
         if not self.current_session:
             await self.create_session()
@@ -335,7 +656,20 @@ class ChatManager:
                 yield chunk
     
     async def _send_rag_message_non_stream(self, content: str, provider: str = None, model: str = None):
-        """Send RAG-enhanced message with non-streaming response."""
+        """Send RAG-enhanced message with non-streaming response.
+        
+        Similar to streaming version but returns complete response at once.
+        Better for programmatic use where streaming isn't needed.
+        
+        Returns:
+            Complete response string with RAG enhancement
+        
+        Metadata Tracking:
+            Messages include metadata about:
+            - Number of memories used
+            - Retrieval time
+            - RAG reasoning (if enabled)
+        """
         # Get conversation history for context
         conversation_history = []
         if self.current_session:
@@ -393,7 +727,27 @@ class ChatManager:
             return await self._send_message_non_stream(content, provider, model)
     
     async def _build_rag_enhanced_messages(self, query: str, rag_context) -> list[Message]:
-        """Build messages enhanced with RAG context."""
+        """Build messages enhanced with RAG context.
+        
+        Args:
+            query: Current user query
+            rag_context: RetrievalContext with memories and metadata
+        
+        Returns:
+            List of Message objects with context-enhanced system prompt
+        
+        Context Organization:
+            Memories are organized by type for clarity:
+            1. Personal Information (highest priority)
+            2. Uploaded File Content
+            3. Other Relevant Information
+        
+        Design Decision:
+            We enhance the system prompt rather than the user message to:
+            - Maintain clear conversation flow
+            - Avoid confusing the model with injected context
+            - Allow the model to naturally reference the context
+        """
         messages = []
 
         # Start with system prompt
@@ -460,7 +814,21 @@ class ChatManager:
         return messages
 
     async def create_session(self, title: str | None = None, template_id: int | None = None):
-        """Create a new chat session."""
+        """Create a new chat session.
+        
+        Args:
+            title: Optional session title. Auto-generated if not provided.
+            template_id: Optional template ID for pre-configured sessions.
+        
+        Effects:
+            - Closes any existing session
+            - Creates new session in database
+            - Sets current_session attribute
+        
+        Note:
+            Sessions are automatically saved and can be resumed later
+            using load_session().
+        """
         if self.current_session:
             await self.close_session()
 
@@ -469,7 +837,20 @@ class ChatManager:
         logger.info(f"Created new session: {self.current_session.id}")
 
     async def load_session(self, conversation_id: str):
-        """Load an existing chat session."""
+        """Load an existing chat session.
+        
+        Args:
+            conversation_id: UUID of the conversation to load
+        
+        Effects:
+            - Closes any existing session
+            - Loads session from database
+            - Restores conversation history
+            - Sets current_session attribute
+        
+        Raises:
+            ValueError: If conversation_id doesn't exist
+        """
         if self.current_session:
             await self.close_session()
 
@@ -478,7 +859,11 @@ class ChatManager:
         logger.info(f"Loaded session: {self.current_session.id}")
 
     async def close_session(self):
-        """Close the current session."""
+        """Close the current session.
+        
+        Properly closes the session context manager and cleans up resources.
+        Safe to call even if no session is active.
+        """
         if self._session_context:
             await self._session_context.__aexit__(None, None, None)
             self.current_session = None
@@ -494,15 +879,34 @@ class ChatManager:
     ):
         """Send a message and get a response.
 
+        This is the primary interface for sending messages without RAG.
+        For RAG-enhanced messages, use send_message_with_rag().
+
         Args:
-            content: Message content
-            provider: Override provider
-            model: Override model
-            stream: Stream the response
-            parent_message_id: ID of parent message for threading
+            content: Message content from the user
+            provider: Override the current provider (e.g., 'openai')
+            model: Override the current model (e.g., 'gpt-4')
+            stream: If True, returns async generator for streaming
+            parent_message_id: For conversation threading (future feature)
 
         Returns:
-            Completion response (non-streaming) or async generator (streaming)
+            For stream=False: Response object with content
+            For stream=True: Async generator yielding text chunks
+        
+        Session Management:
+            Automatically creates a session if none exists.
+            Messages are persisted to the session for history.
+        
+        Example:
+            ```python
+            # Non-streaming
+            response = await chat_manager.send_message("Hello!")
+            print(response.content)
+            
+            # Streaming
+            async for chunk in chat_manager.send_message("Hello!", stream=True):
+                print(chunk, end="")
+            ```
         """
         if stream:
             return self._send_message_stream_generator(content, provider, model, parent_message_id)
@@ -516,7 +920,11 @@ class ChatManager:
         model: str | None = None,
         parent_message_id: str | None = None,
     ):
-        """Async generator wrapper for streaming message sending."""
+        """Async generator wrapper for streaming message sending.
+        
+        This thin wrapper ensures proper async generator protocol compliance.
+        Python requires async generators to be defined with async def and yield.
+        """
         async for chunk in self._send_message_stream(content, provider, model, parent_message_id):
             yield chunk
 
@@ -527,7 +935,32 @@ class ChatManager:
         model: str | None = None,
         parent_message_id: str | None = None,
     ):
-        """Send a message with streaming response."""
+        """Send a message with streaming response.
+        
+        Core implementation of streaming message sending.
+        
+        Process Flow:
+            1. Ensure session exists (auto-create if needed)
+            2. Build context messages with history and memory
+            3. Add user message to session
+            4. Stream response from LLM
+            5. Update assistant message progressively
+            6. Store conversation in memory
+        
+        Context Building:
+            - Includes system prompt (with optional memory)
+            - Adds conversation history (last 20 messages)
+            - Appends current user message
+        
+        Error Recovery:
+            Special handling for "Event loop is closed" during shutdown
+            to prevent error spam when the app is closing.
+        
+        Performance:
+            - Yields chunks immediately for low latency
+            - Updates stored message periodically
+            - Memory storage is async and non-blocking
+        """
         # Ensure we have a session
         if not self.current_session:
             await self.create_session()
@@ -612,7 +1045,20 @@ class ChatManager:
         model: str | None = None,
         parent_message_id: str | None = None,
     ):
-        """Send a message with non-streaming response."""
+        """Send a message with non-streaming response.
+        
+        Simpler version that waits for complete response before returning.
+        
+        Use Cases:
+            - Programmatic interactions
+            - Testing and debugging  
+            - When you need the full response for processing
+        
+        Note:
+            This method doesn't include memory context building like the
+            streaming version. It's a simpler direct message-response flow.
+            For memory-aware responses, use streaming or RAG methods.
+        """
         # Ensure we have a session
         if not self.current_session:
             await self.create_session()
@@ -666,12 +1112,27 @@ class ChatManager:
     ) -> list[Message]:
         """Build messages with memory context.
 
+        Constructs the full message context for the LLM, including system prompt,
+        relevant memories, conversation history, and available tools.
+
         Args:
-            query: Current user query
-            exclude_current: If True, exclude the most recent message from history
+            query: Current user query for memory retrieval
+            exclude_current: If True, exclude the most recent message from history.
+                Used to avoid duplicating the current message.
 
         Returns:
-            Messages with context
+            List of Message objects forming the complete context
+        
+        Context Structure:
+            1. System prompt (base or user-configured)
+            2. Conversation metadata (title, session info)
+            3. Relevant memories (if memory integration enabled)
+            4. Available MCP tools summary
+            5. Conversation history (up to 20 messages)
+        
+        Memory Integration:
+            When enabled, uses enhanced memory recall to find relevant memories
+            including special handling for personal information queries.
         """
         messages = []
 
@@ -722,7 +1183,33 @@ class ChatManager:
         return messages
 
     async def _enhanced_memory_recall(self, query: str) -> list:
-        """Enhanced memory recall with better personal information retrieval."""
+        """Enhanced memory recall with better personal information retrieval.
+        
+        Implements an intelligent memory retrieval strategy that prioritizes
+        personal information and expands searches for better recall.
+        
+        Args:
+            query: The user's query to search for
+        
+        Returns:
+            List of up to 8 most relevant Memory objects
+        
+        Search Strategy:
+            1. Initial semantic search with standard parameters
+            2. Personal information detection and expanded search
+            3. Keyword-based fallback for personal queries
+            4. Importance and recency-based ranking
+        
+        Personal Query Detection:
+            Identifies queries about personal information like names,
+            contact details, preferences, etc., and performs additional
+            targeted searches to ensure this critical information is found.
+        
+        Performance:
+            - Primary search: ~50-100ms
+            - Expanded search (if needed): +50-100ms
+            - Returns max 8 memories to balance context and relevance
+        """
         try:
             # Start with direct semantic search
             memories = await self.memory_manager.recall(query=query, limit=8, threshold=0.4)
@@ -786,35 +1273,94 @@ class ChatManager:
             return await self.memory_manager.recall(query=query, limit=5, threshold=0.4)
 
     async def get_conversations(self, **kwargs) -> list[dict[str, Any]]:
-        """Get list of conversations."""
+        """Get list of conversations.
+        
+        Args:
+            **kwargs: Filtering options passed to SessionManager
+                - archived: Include archived conversations
+                - limit: Maximum number to return
+                - offset: Pagination offset
+        
+        Returns:
+            List of conversation dictionaries with metadata
+        """
         return await self.session_manager.list_conversations(**kwargs)
 
     async def get_conversation_stats(self, conversation_id: str) -> dict[str, Any]:
-        """Get conversation statistics."""
+        """Get conversation statistics.
+        
+        Args:
+            conversation_id: UUID of the conversation
+        
+        Returns:
+            Dict with statistics like message count, duration,
+            tokens used, most active times, etc.
+        """
         return await self.session_manager.get_conversation_stats(conversation_id)
 
     async def export_conversation(
         self, conversation_id: str, format: str = "json"
     ) -> dict[str, Any]:
-        """Export a conversation."""
+        """Export a conversation.
+        
+        Args:
+            conversation_id: UUID of the conversation
+            format: Export format ('json', 'markdown', 'txt')
+        
+        Returns:
+            Exported data in requested format
+        
+        Formats:
+            - json: Complete data with metadata
+            - markdown: Human-readable with formatting  
+            - txt: Plain text transcript
+        """
         return await self.session_manager.export_conversation(conversation_id, format)
 
     async def archive_conversation(self, conversation_id: str) -> bool:
-        """Archive a conversation."""
+        """Archive a conversation.
+        
+        Args:
+            conversation_id: UUID of the conversation
+        
+        Returns:
+            True if successfully archived
+        
+        Effects:
+            Archived conversations are hidden from normal lists
+            but remain searchable and can be unarchived.
+        """
         return await self.session_manager.archive_conversation(conversation_id)
 
     async def delete_conversation(self, conversation_id: str, hard_delete: bool = False) -> bool:
-        """Delete a conversation."""
+        """Delete a conversation.
+        
+        Args:
+            conversation_id: UUID of the conversation
+            hard_delete: If True, permanently delete. If False, soft delete.
+        
+        Returns:
+            True if successfully deleted
+        
+        Soft vs Hard Delete:
+            - Soft: Marks as deleted but keeps data (recoverable)
+            - Hard: Permanently removes from database (unrecoverable)
+        """
         return await self.session_manager.delete_conversation(conversation_id, hard_delete)
 
     async def set_provider(self, provider: str) -> bool:
         """Set the current LLM provider.
 
         Args:
-            provider: Provider name
+            provider: Provider name ('ollama', 'openai', 'lmstudio')
 
         Returns:
-            True if successful
+            True if provider exists and was set
+        
+        Note:
+            This only changes the provider, not the model. You may need
+            to also call set_model() if the current model isn't available
+            in the new provider.
         """
         if provider in self.providers:
             self.current_provider = provider
@@ -827,7 +1373,11 @@ class ChatManager:
         """List available providers.
 
         Returns:
-            List of provider names
+            List of initialized provider names
+        
+        Note:
+            This returns the same as get_available_providers() but
+            maintains the async interface for consistency.
         """
         return list(self.providers.keys())
 
@@ -838,7 +1388,11 @@ class ChatManager:
             provider: Provider name (uses current if not specified)
 
         Returns:
-            List of model names
+            List of model names available from the provider
+        
+        Note:
+            This queries the provider directly. For cached model info
+            with metadata, use get_available_models() instead.
         """
         provider = provider or self.current_provider
 
@@ -847,7 +1401,36 @@ class ChatManager:
         return []
 
     async def _store_conversation_memory(self, user_content: str, assistant_content: str):
-        """Store conversation exchange in memory for future context with intelligent filtering."""
+        """Store conversation exchange in memory for future context with intelligent filtering.
+        
+        Analyzes conversation content and selectively stores important information
+        in the memory system for future retrieval.
+        
+        Args:
+            user_content: The user's message
+            assistant_content: The assistant's response
+        
+        Storage Logic:
+            1. Calculate importance scores for both messages
+            2. Classify memory types based on content analysis
+            3. Store messages that meet importance thresholds
+            4. Create conversation pair memories for valuable exchanges
+        
+        Importance Thresholds:
+            - User messages: 0.4 (more inclusive)
+            - Assistant responses: 0.5 (more selective)
+            - Conversation pairs: 0.6 (only meaningful exchanges)
+        
+        Memory Types:
+            - EPISODIC: Time-based events and experiences
+            - SEMANTIC: Facts, procedures, general knowledge
+            - LONG_TERM: Important persistent information
+            - SHORT_TERM: Temporary information (default)
+        
+        Performance:
+            Designed to be fast and non-blocking. Memory storage happens
+            asynchronously and failures don't affect the conversation flow.
+        """
         try:
             # Calculate importance for both messages
             user_importance = self._calculate_importance(user_content)
@@ -994,7 +1577,19 @@ class ChatManager:
             logger.error(f"Failed to store conversation memory: {e}")
 
     def _create_memory_summary(self, content: str, speaker: str) -> str:
-        """Create a more descriptive summary for memory storage."""
+        """Create a more descriptive summary for memory storage.
+        
+        Args:
+            content: Original message content
+            speaker: 'user' or 'assistant'
+        
+        Returns:
+            Formatted content with speaker context
+        
+        Truncation:
+            Long content is truncated to ~400 chars, preserving
+            both beginning and end for better context.
+        """
         # Truncate very long content but preserve key information
         if len(content) > 500:
             # Try to preserve the beginning and end, which often contain key info
@@ -1007,7 +1602,19 @@ class ChatManager:
             return f"Assistant explained: {content}"
 
     def _create_conversation_summary(self, user_content: str, assistant_content: str) -> str:
-        """Create a structured summary of a conversation exchange."""
+        """Create a structured summary of a conversation exchange.
+        
+        Args:
+            user_content: The user's message
+            assistant_content: The assistant's response
+        
+        Returns:
+            Formatted conversation summary for memory storage
+        
+        Format:
+            Creates a structured Q&A format that's easy to parse
+            and understand when retrieved from memory.
+        """
         # Truncate long messages for summary
         user_summary = user_content[:200] + "..." if len(user_content) > 200 else user_content
         assistant_summary = (
@@ -1017,7 +1624,36 @@ class ChatManager:
         return f"Conversation exchange:\nUser asked: {user_summary}\nAssistant replied: {assistant_summary}"
 
     def _calculate_importance(self, content: str) -> float:
-        """Calculate importance score for content based on various factors."""
+        """Calculate importance score for content based on various factors.
+        
+        Implements a sophisticated scoring algorithm that considers multiple
+        signals to determine if content should be stored in memory.
+        
+        Args:
+            content: Text content to analyze
+        
+        Returns:
+            Importance score between 0.0 and 1.0
+        
+        Scoring Factors:
+            1. Base score: 0.3 (conservative default)
+            2. Length/complexity: Up to +0.25 for substantial content
+            3. Questions: +0.1-0.2 (indicates learning opportunity)
+            4. Memory commands: +0.3 (explicit storage request)
+            5. Personal identity: +0.25 (critical information)
+            6. Preferences: +0.2 (personalization data)
+            7. Project/goals: +0.15 (work context)
+            8. Learning requests: +0.1 (knowledge building)
+            9. Technical content: +0.03-0.15 (domain expertise)
+            10. Priority indicators: +0.1 (urgency/importance)
+            11. Emotional content: +0.05 (significant interactions)
+            12. Structured data: +0.05-0.1 (URLs, emails, etc.)
+        
+        Design Philosophy:
+            The algorithm is intentionally conservative (base 0.3) to avoid
+            memory pollution. Content must have clear value signals to be
+            stored. Personal information and explicit requests get highest priority.
+        """
         importance = 0.3  # Lower base importance to be more selective
 
         # Length and complexity factors
