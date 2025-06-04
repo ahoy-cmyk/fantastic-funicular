@@ -12,6 +12,10 @@ os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 os.environ["TRANSFORMERS_VERBOSITY"] = "error"
 os.environ["TORCH_SHOW_CPP_STACKTRACES"] = "0"
 os.environ["PYTHONWARNINGS"] = "ignore"
+# Additional ONNX runtime suppression
+os.environ["ORT_DISABLE_ALL_LOGS"] = "1"
+os.environ["OMP_NUM_THREADS"] = "1"  # Can help with context leaks
+os.environ["ONNXRUNTIME_LOG_SEVERITY_LEVEL"] = "4"  # Error level only
 
 # Suppress all categories of warnings aggressively
 warnings.filterwarnings("ignore")
@@ -29,6 +33,8 @@ warnings.filterwarnings("ignore", category=ResourceWarning)
 # Set logging levels for all noisy libraries
 loggers_to_silence = [
     "onnxruntime",
+    "onnxruntime.capi",
+    "onnxruntime.capi.onnxruntime_pybind11_state",
     "sentence_transformers",
     "transformers",
     "torch",
@@ -38,11 +44,14 @@ loggers_to_silence = [
     "requests",
     "chromadb",
     "chromadb.telemetry",
-    "onnxruntime.capi.onnxruntime_pybind11_state",
+    "chromadb.db",
+    "sqlite3",
 ]
 
 for logger_name in loggers_to_silence:
-    logging.getLogger(logger_name).setLevel(logging.CRITICAL)
+    logger = logging.getLogger(logger_name)
+    logger.setLevel(logging.CRITICAL)
+    logger.disabled = True  # Completely disable these loggers
 
 # Additional suppression for context leak messages
 

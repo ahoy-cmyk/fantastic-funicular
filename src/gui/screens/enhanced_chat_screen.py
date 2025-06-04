@@ -158,6 +158,9 @@ class EnhancedChatScreen(MDScreen):
 
         # Shutdown flag to prevent operations after app closure
         self._is_shutting_down = False
+        
+        # Performance optimization flags
+        self._pending_scroll = False
 
         # Build UI
         self.build_ui()
@@ -315,8 +318,14 @@ class EnhancedChatScreen(MDScreen):
         try:
             # Ensure drawer is properly closed and positioned
             self.nav_drawer.set_state("close", animation=False)
-            # Force a layout update
-            self.nav_drawer._update_pos()
+            # Trigger layout update using public methods instead of private _update_pos
+            if hasattr(self.nav_drawer, 'trigger_layout'):
+                self.nav_drawer.trigger_layout()
+            elif hasattr(self.nav_drawer, '_trigger_layout'):
+                self.nav_drawer._trigger_layout()
+            else:
+                # Fallback - just ensure it's closed
+                self.nav_drawer.state = "close"
         except Exception as e:
             logger.warning(f"Could not fix drawer position: {e}")
 
@@ -1511,3 +1520,11 @@ class EnhancedChatScreen(MDScreen):
         except Exception as e:
             logger.error(f"Failed to remove conversation from UI: {e}")
             Notification.error("Failed to update UI after deleting conversation")
+
+    def _perform_scroll_to_bottom(self, dt):
+        """Optimized scroll to bottom helper."""
+        try:
+            self.messages_scroll.scroll_y = 0
+            self._pending_scroll = False
+        except AttributeError:
+            pass  # Widget might be destroyed

@@ -95,6 +95,13 @@ class NeuromancerApp(MDApp):
                 10, "Loading configuration...", "Reading settings and preferences"
             )
             await asyncio.sleep(0.1)  # Let UI update
+            
+            # Refresh loggers to respect configuration
+            try:
+                from src.utils.logger import refresh_all_loggers
+                refresh_all_loggers()
+            except Exception:
+                pass  # Don't fail loading if logger refresh fails
 
             # Preload some heavy imports to reduce later delays
             self.splash_screen.set_progress(

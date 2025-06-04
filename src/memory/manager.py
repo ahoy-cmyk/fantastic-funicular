@@ -360,6 +360,35 @@ class MemoryManager:
             logger.error(f"Failed to get memory stats: {e}")
             return {"error": str(e)}
 
+    async def get_all_memories(
+        self, 
+        memory_type: MemoryType | None = None, 
+        limit: int = 100,
+        offset: int = 0
+    ) -> list[Memory]:
+        """Get all memories efficiently without vector search.
+        
+        Args:
+            memory_type: Specific memory type or None for all types
+            limit: Maximum number of memories to return  
+            offset: Number of memories to skip (for pagination)
+            
+        Returns:
+            List of memories
+        """
+        try:
+            if hasattr(self.store, 'get_all_memories'):
+                # Use the efficient direct method if available
+                return await self.store.get_all_memories(memory_type, limit, offset)
+            else:
+                # Fallback to search method (less efficient)
+                logger.warning("Using fallback search method for getting all memories")
+                return await self.recall("a", [memory_type] if memory_type else None, limit, 0.0)
+                
+        except Exception as e:
+            logger.error(f"Failed to get all memories: {e}")
+            return []
+
     def _classify_memory_type(self, content: str, default_type: MemoryType) -> MemoryType:
         """Intelligently classify memory type based on content."""
         content_lower = content.lower()

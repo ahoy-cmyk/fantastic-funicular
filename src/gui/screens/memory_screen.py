@@ -174,6 +174,12 @@ class MemoryScreen(MDScreen):
         self.filtered_memories = []
         self.current_filter = None
         self.search_query = ""
+        
+        # Pagination state
+        self.current_page = 0
+        self.page_size = 50  # Load 50 memories at a time
+        self.total_memories = 0
+        self.has_more_memories = True
 
         self.build_ui()
 
@@ -398,7 +404,7 @@ class MemoryScreen(MDScreen):
             try:
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
-                loop.run_until_complete(self._load_memories_async())
+                loop.run_until_complete(self._load_memories_async(load_more=False))
             except Exception as e:
                 logger.error(f"Failed to load memories: {e}")
                 Clock.schedule_once(lambda dt: Notification.error("Failed to load memories"), 0)
@@ -409,33 +415,55 @@ class MemoryScreen(MDScreen):
         thread.daemon = True
         thread.start()
 
-    async def _load_memories_async(self):
-        """Load all memories from the memory system."""
+    async def _load_memories_async(self, load_more=False):
+        """Load memories from the memory system with pagination."""
         try:
-            # Use the new safe_get_all_memories method
-            all_memories = await self.safe_memory.safe_get_all_memories()
+            # Calculate offset for pagination
+            offset = 0 if not load_more else len(self.memories)
+            
+            # Use the efficient get_all_memories method with pagination
+            new_memories = await self.safe_memory.safe_get_all_memories(
+                memory_types=None,  # Get all types
+                limit=self.page_size,
+                offset=offset
+            )
 
-            # Sort by creation date (newest first)
-            all_memories.sort(key=lambda m: m.created_at, reverse=True)
+            # Update pagination state
+            self.has_more_memories = len(new_memories) == self.page_size
+            
+            if load_more:
+                # Append to existing memories
+                all_memories = self.memories + new_memories
+            else:
+                # Replace existing memories
+                all_memories = new_memories
+                self.current_page = 0
 
             # Update UI on main thread
-            Clock.schedule_once(lambda dt: self._update_memories_list(all_memories), 0)
+            Clock.schedule_once(lambda dt: self._update_memories_list(all_memories, load_more), 0)
 
         except Exception as e:
             logger.error(f"Failed to load memories: {e}")
             Clock.schedule_once(lambda dt: Notification.error("Failed to load memories"), 0)
 
-    def _update_memories_list(self, memories):
+    def _update_memories_list(self, memories, is_load_more=False):
         """Update the memories list in the UI."""
         self.memories = memories
         self.filtered_memories = memories.copy()
-        self._refresh_list_display()
+        
+        if not is_load_more:
+            # Clear the list for fresh load
+            self._refresh_list_display()
+        else:
+            # Append new items to existing list
+            self._append_memories_to_display()
 
         # Update count
         if len(memories) == 0:
             self.count_label.text = "No memories found. Click + to add your first memory!"
         else:
-            self.count_label.text = f"Showing {len(memories)} memories"
+            more_text = f" (+ more available)" if self.has_more_memories else ""
+            self.count_label.text = f"Showing {len(memories)} memories{more_text}"
 
         logger.info(f"Loaded {len(memories)} memories")
 
@@ -483,6 +511,86 @@ class MemoryScreen(MDScreen):
                     memory=memory, on_edit=self._edit_memory, on_delete=self._confirm_delete_memory
                 )
                 self.memories_list.add_widget(item)
+            
+            # Add "Load More" button if there are more memories
+            if self.has_more_memories:
+                self._add_load_more_button()
+
+    def _append_memories_to_display(self):
+        """Append new memories to the existing display (for load more)."""
+        # Get the number of memories already displayed
+        current_count = len([child for child in self.memories_list.children 
+                           if isinstance(child, MemoryListItem)])
+        
+        # Add only the new memories 
+        new_memories = self.filtered_memories[current_count:]
+        for memory in new_memories:
+            item = MemoryListItem(
+                memory=memory, on_edit=self._edit_memory, on_delete=self._confirm_delete_memory
+            )
+            # Insert at the beginning to maintain chronological order
+            self.memories_list.add_widget(item, index=len(self.memories_list.children))
+        
+        # Update or add "Load More" button
+        self._update_load_more_button()
+
+    def _add_load_more_button(self):
+        """Add a 'Load More' button to the memories list."""
+        from kivymd.uix.button import MDRaisedButton
+        from kivymd.uix.card import MDCard
+        
+        # Create card for the button
+        button_card = MDCard(
+            orientation="vertical",
+            size_hint_y=None,
+            height=dp(80),
+            padding=dp(15),
+            spacing=dp(10),
+            elevation=1,
+            md_bg_color=(0.15, 0.15, 0.15, 1),
+        )
+        
+        load_more_btn = MDRaisedButton(
+            text=f"Load More Memories ({self.page_size} more)",
+            size_hint=(None, None),
+            size=(dp(200), dp(40)),
+            pos_hint={"center_x": 0.5},
+            on_release=self._load_more_memories,
+        )
+        
+        button_card.add_widget(load_more_btn)
+        self.memories_list.add_widget(button_card)
+        
+    def _update_load_more_button(self):
+        """Update or remove the Load More button based on availability."""
+        # Remove existing load more button if any
+        for child in self.memories_list.children[:]:
+            if hasattr(child, 'children') and child.children:
+                for grandchild in child.children:
+                    if hasattr(grandchild, 'text') and 'Load More' in str(grandchild.text):
+                        self.memories_list.remove_widget(child)
+                        break
+        
+        # Add new button if more memories are available
+        if self.has_more_memories:
+            self._add_load_more_button()
+    
+    def _load_more_memories(self, *args):
+        """Load more memories when button is pressed."""
+        def run_async():
+            loop = asyncio.new_event_loop()
+            try:
+                asyncio.set_event_loop(loop)
+                loop.run_until_complete(self._load_memories_async(load_more=True))
+            except Exception as e:
+                logger.error(f"Failed to load more memories: {e}")
+                Clock.schedule_once(lambda dt: Notification.error("Failed to load more memories"), 0)
+            finally:
+                loop.close()
+
+        thread = threading.Thread(target=run_async)
+        thread.daemon = True
+        thread.start()
 
     def _apply_filter(self, memory_type: MemoryType | None):
         """Apply memory type filter."""

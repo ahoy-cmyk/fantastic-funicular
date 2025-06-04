@@ -7,6 +7,9 @@ from pathlib import Path
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+# Import suppression first to catch all warnings
+from src.utils import suppress_warnings  # noqa: F401
+
 from src.core.config import settings
 from src.gui.app import NeuromancerApp
 from src.gui.utils.error_handling import setup_global_error_handling

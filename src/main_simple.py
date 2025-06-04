@@ -7,6 +7,12 @@ from pathlib import Path
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+# Import suppression first to catch all warnings
+try:
+    from src.utils import suppress_warnings  # noqa: F401
+except ImportError:
+    pass  # In case of import issues during testing
+
 if __name__ == "__main__":
     try:
         from kivy.config import Config

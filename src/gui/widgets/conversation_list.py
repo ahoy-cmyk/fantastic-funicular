@@ -220,7 +220,7 @@ class ConversationList(MDBoxLayout):
             },
         ]
 
-        self.filter_menu = MDDropdownMenu(caller=widget, items=menu_items, width_mult=4)
+        self.filter_menu = MDDropdownMenu(caller=widget, items=menu_items)
         self.filter_menu.open()
 
     def _sort_conversations(self, sort_by: str):

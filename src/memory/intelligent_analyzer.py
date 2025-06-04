@@ -113,25 +113,43 @@ class IntelligentMemoryAnalyzer:
         signals = []
         content_lower = content.lower().strip()
 
-        if not content_lower or len(content_lower) < 3:
+        # Quick early returns for performance
+        if not content_lower or len(content_lower) < 5:
+            return signals
+        
+        # Skip analysis for very common/short phrases that are unlikely to be memorable
+        common_phrases = {"ok", "yes", "no", "sure", "thanks", "thank you", "hello", "hi", "bye"}
+        if content_lower in common_phrases:
+            return signals
+        
+        # Skip if content is mostly punctuation or numbers
+        if len([c for c in content_lower if c.isalpha()]) < len(content_lower) * 0.6:
             return signals
 
-        # Extract different types of memorable information
+        # Extract different types of memorable information (most important first for early wins)
         signals.extend(self._extract_identity_info(content))
+        if len(signals) >= 3:  # Early return if we found significant identity info
+            return self._finalize_signals(signals, content, conversation_context)
+            
         signals.extend(self._extract_contact_info(content))
         signals.extend(self._extract_preferences(content))
         signals.extend(self._extract_goals_and_plans(content))
         signals.extend(self._extract_experiences(content))
         signals.extend(self._extract_knowledge(content))
 
-        # Apply contextual analysis
-        for analyzer in self.context_analyzers:
-            contextual_signals = analyzer(content, conversation_context or [])
-            signals.extend(contextual_signals)
+        return self._finalize_signals(signals, content, conversation_context)
 
-        # Analyze overall conversation flow and significance
-        if conversation_context:
-            signals.extend(self._analyze_conversation_significance(content, conversation_context))
+    def _finalize_signals(self, signals: list, content: str, conversation_context: list[str]) -> list:
+        """Finalize signals with contextual analysis and scoring."""
+        # Apply contextual analysis only if we have some initial signals
+        if signals:
+            for analyzer in self.context_analyzers:
+                contextual_signals = analyzer(content, conversation_context or [])
+                signals.extend(contextual_signals)
+
+            # Analyze overall conversation flow and significance
+            if conversation_context:
+                signals.extend(self._analyze_conversation_significance(content, conversation_context))
 
         # Remove duplicates and merge related signals
         signals = self._deduplicate_and_merge_signals(signals)

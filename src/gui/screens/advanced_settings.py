@@ -477,7 +477,7 @@ class AdvancedSettingsScreen(MDScreen):
             for profile in profiles
         ]
 
-        self.profile_menu = MDDropdownMenu(caller=button, items=menu_items, width_mult=4)
+        self.profile_menu = MDDropdownMenu(caller=button, items=menu_items)
         self.profile_menu.open()
 
     def load_profile(self, profile_name: str):

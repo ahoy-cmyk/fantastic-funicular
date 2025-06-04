@@ -114,22 +114,42 @@ class SafeMemoryManager:
     async def safe_get_all_memories(
         self,
         memory_types: list[MemoryType] | None = None,
-        limit: int = 1000,
+        limit: int = 100,
+        offset: int = 0,
     ) -> list[Memory]:
-        """Safely get all memories with error handling."""
+        """Safely get all memories with error handling using efficient method."""
         try:
-            all_memories = []
-            types_to_search = memory_types or list(MemoryType)
-
-            for memory_type in types_to_search:
-                # Use a common word with very low threshold to get all memories
-                memories = await self.memory_manager.recall(
-                    query="a", memory_types=[memory_type], limit=limit, threshold=0.0
+            if memory_types and len(memory_types) == 1:
+                # Single memory type - use efficient direct method
+                memories = await self.memory_manager.get_all_memories(
+                    memory_type=memory_types[0], 
+                    limit=limit, 
+                    offset=offset
                 )
-                all_memories.extend(memories)
+            elif not memory_types:
+                # All memory types - use efficient direct method
+                memories = await self.memory_manager.get_all_memories(
+                    memory_type=None, 
+                    limit=limit, 
+                    offset=offset
+                )
+            else:
+                # Multiple specific types - need to combine results
+                all_memories = []
+                for memory_type in memory_types:
+                    type_memories = await self.memory_manager.get_all_memories(
+                        memory_type=memory_type, 
+                        limit=limit, 
+                        offset=0  # Get all for sorting
+                    )
+                    all_memories.extend(type_memories)
+                
+                # Sort and paginate
+                all_memories.sort(key=lambda m: m.created_at, reverse=True)
+                memories = all_memories[offset:offset + limit]
 
-            logger.info(f"Successfully retrieved {len(all_memories)} memories")
-            return all_memories
+            logger.info(f"Successfully retrieved {len(memories)} memories efficiently")
+            return memories
 
         except Exception as e:
             error_msg = f"Failed to get all memories: {str(e)}"
