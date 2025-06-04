@@ -1,6 +1,7 @@
 """Enhanced chat screen with multi-chat support and memory integration."""
 
 import asyncio
+import threading
 from datetime import datetime
 
 from kivy.clock import Clock
@@ -171,6 +172,8 @@ class EnhancedChatScreen(MDScreen):
     def on_enter(self, *args):
         """Called when entering the screen - reset shutdown flag."""
         self._is_shutting_down = False
+        # Refresh model status when entering the screen
+        Clock.schedule_once(lambda dt: self._refresh_model_status(), 0.1)
 
     def on_pre_leave(self, *args):
         """Called when leaving the screen - cleanup async operations."""
@@ -245,7 +248,7 @@ class EnhancedChatScreen(MDScreen):
 
         # Top toolbar with provider/model info
         provider_info = self._get_provider_model_info()
-        self.toolbar = MDTopAppBar(title=f"Enhanced Chat - {provider_info}", elevation=2)
+        self.toolbar = MDTopAppBar(title=f"Chat - {provider_info}", elevation=2)
 
         # Add menu button to open drawer
         menu_btn = MDIconButton(icon="menu", on_release=lambda x: self.nav_drawer.set_state("open"))
@@ -253,12 +256,18 @@ class EnhancedChatScreen(MDScreen):
 
         # Add action buttons to toolbar
         self.toolbar.right_action_items = [
-            ["swap-horizontal", lambda x: self._show_provider_switcher()],
-            ["memory", lambda x: self._go_to_memory_screen()],
-            ["cog", lambda x: self._go_to_settings()],
+            ["chip", lambda x: self._go_to_model_management()],  # Model management
+            ["attachment", lambda x: self._show_file_upload()],   # File upload for RAG
+            ["folder", lambda x: self._go_to_file_management()], # File management
+            ["memory", lambda x: self._go_to_memory_screen()],   # Memory screen
+            ["cog", lambda x: self._go_to_settings()],          # Settings
         ]
 
         chat_content.add_widget(self.toolbar)
+
+        # Current model status card
+        self.model_status_card = self._create_model_status_card()
+        chat_content.add_widget(self.model_status_card)
 
         # Memory context card (initially hidden)
         self.memory_context = MemoryContextCard()
@@ -435,8 +444,6 @@ class EnhancedChatScreen(MDScreen):
         assistant_widget = self._add_message_widget_sync(placeholder_text, "assistant")
 
         # Run async processing in background
-        import threading
-
         def run_async_send():
             try:
                 loop = asyncio.new_event_loop()
@@ -460,9 +467,9 @@ class EnhancedChatScreen(MDScreen):
             if self._is_shutting_down:
                 logger.info("Skipping message send - app is shutting down")
                 return
-            # Get relevant memories for context (use higher threshold for speed)
+            # Get relevant memories for context (use lower threshold for better recall)
             relevant_memories = await self.safe_memory.safe_recall(
-                query=message_text, threshold=0.5, limit=3
+                query=message_text, threshold=0.3, limit=5
             )
 
             # Show memory context if memories found (schedule on main thread)
@@ -490,11 +497,12 @@ class EnhancedChatScreen(MDScreen):
                     },
                 )
 
-            # Send to chat manager with streaming
+            # Send to chat manager with RAG-enhanced streaming
             response_text = ""
             chunk_count = 0
             try:
-                async for chunk in self.chat_manager.send_message(message_text, stream=True):
+                # Use RAG-enhanced messaging for better context with uploaded files
+                async for chunk in self.chat_manager.send_message_with_rag(message_text, stream=True):
                     # Check for shutdown during streaming
                     if self._is_shutting_down:
                         logger.info("Stopping message streaming - app is shutting down")
@@ -684,6 +692,98 @@ class EnhancedChatScreen(MDScreen):
         self.memory_context.opacity = 0
         self.memory_context.height = 0
 
+    def _create_model_status_card(self):
+        """Create a card showing current model and RAG status."""
+        model_card = MDCard(
+            orientation="horizontal",
+            size_hint_y=None,
+            height=dp(60),
+            padding=dp(10),
+            spacing=dp(10),
+            elevation=ELEVATION.get("card", 2),
+            md_bg_color=THEME_COLORS.get("card_bg", [0.2, 0.2, 0.2, 1]),
+            radius=[dp(8), dp(8), dp(8), dp(8)],
+        )
+        
+        # Model info layout
+        info_layout = MDBoxLayout(orientation="vertical", adaptive_height=True)
+        
+        # Current model label
+        self.current_model_label = MDLabel(
+            text=f"Model: {self._get_provider_model_info()}",
+            font_style="Subtitle2",
+            theme_text_color="Primary",
+            adaptive_height=True,
+            bold=True
+        )
+        
+        # RAG status label
+        rag_status = "RAG: Enabled" if getattr(self.chat_manager, 'rag_enabled', True) else "RAG: Disabled"
+        self.rag_status_label = MDLabel(
+            text=rag_status,
+            font_style="Caption",
+            theme_text_color="Primary" if getattr(self.chat_manager, 'rag_enabled', True) else "Secondary",
+            adaptive_height=True
+        )
+        
+        info_layout.add_widget(self.current_model_label)
+        info_layout.add_widget(self.rag_status_label)
+        
+        # Quick actions
+        actions_layout = MDBoxLayout(
+            orientation="horizontal",
+            spacing=dp(5),
+            adaptive_height=True,
+            size_hint_x=None,
+            width=dp(120)
+        )
+        
+        # Switch model button
+        switch_button = MDIconButton(
+            icon="swap-horizontal",
+            on_release=lambda x: self._go_to_model_management(),
+            theme_icon_color="Custom",
+            icon_color=THEME_COLORS.get("primary", [0.2, 0.6, 1, 1])
+        )
+        
+        # Refresh model info button
+        refresh_button = MDIconButton(
+            icon="refresh",
+            on_release=lambda x: self._refresh_model_status(),
+            theme_icon_color="Custom",
+            icon_color=THEME_COLORS.get("primary", [0.2, 0.6, 1, 1])
+        )
+        
+        actions_layout.add_widget(switch_button)
+        actions_layout.add_widget(refresh_button)
+        
+        model_card.add_widget(info_layout)
+        model_card.add_widget(actions_layout)
+        
+        return model_card
+    
+    def _refresh_model_status(self):
+        """Refresh the model status display."""
+        try:
+            # Update model info
+            model_info = self._get_provider_model_info()
+            self.current_model_label.text = f"Model: {model_info}"
+            
+            # Update RAG status
+            rag_enabled = getattr(self.chat_manager, 'rag_enabled', True)
+            rag_status = "RAG: Enabled" if rag_enabled else "RAG: Disabled"
+            self.rag_status_label.text = rag_status
+            self.rag_status_label.theme_text_color = "Primary" if rag_enabled else "Secondary"
+            
+            # Update toolbar title as well
+            if hasattr(self, 'toolbar'):
+                self.toolbar.title = f"Chat - {model_info}"
+                
+            logger.info(f"Refreshed model status: {model_info}, RAG: {rag_enabled}")
+            
+        except Exception as e:
+            logger.error(f"Failed to refresh model status: {e}")
+
     @safe_dialog_operation
     def _show_memory_panel(self, *args):
         """Show memory management panel."""
@@ -736,8 +836,6 @@ class EnhancedChatScreen(MDScreen):
 
     def _schedule_load_memory_stats(self, label):
         """Schedule the async memory stats loading in a thread-safe way."""
-        import threading
-
         def run_async_load():
             try:
                 loop = asyncio.new_event_loop()
@@ -764,14 +862,150 @@ class EnhancedChatScreen(MDScreen):
             dialog.dismiss()
         self.manager.current = "memory"
 
+    def _go_to_model_management(self):
+        """Navigate to model management screen."""
+        self.manager.current = "model_management"
+
     def _go_to_settings(self):
         """Navigate to settings screen."""
         self.manager.current = "settings"
+    
+    def _go_to_file_management(self):
+        """Navigate to file management screen."""
+        self.manager.current = "file_management"
+    
+    @safe_dialog_operation
+    def _show_file_upload(self, *args):
+        """Show file upload dialog for RAG processing."""
+        from kivymd.uix.filemanager import MDFileManager
+        
+        def file_manager_open():
+            self.file_manager = MDFileManager(
+                exit_manager=self.exit_file_manager,
+                select_path=self.select_file_path,
+                ext=['.txt', '.pdf', '.md', '.json', '.py', '.js', '.java', '.cpp', '.c', '.html', '.xml', '.csv', '.docx']
+            )
+            self.file_manager.show('/')  # Start from root directory
+        
+        # Create file upload dialog
+        content = MDBoxLayout(
+            orientation="vertical",
+            spacing=dp(10),
+            size_hint_y=None,
+            height=dp(200)
+        )
+        
+        info_label = MDLabel(
+            text="Upload a file to add its content to the RAG memory system.\n"
+                 "Supported formats: txt, pdf, md, json, py, js, java, cpp, c, html, xml, csv, docx",
+            theme_text_color="Primary",
+            adaptive_height=True
+        )
+        
+        browse_button = MDRaisedButton(
+            text="Browse Files",
+            size_hint_y=None,
+            height=dp(40),
+            on_release=lambda x: (dialog.dismiss(), file_manager_open())
+        )
+        
+        content.add_widget(info_label)
+        content.add_widget(browse_button)
+        
+        dialog = MDDialog(
+            title="Upload File for RAG",
+            type="custom",
+            content_cls=content,
+            buttons=[
+                MDFlatButton(
+                    text="Cancel",
+                    on_release=lambda x: dialog.dismiss()
+                )
+            ]
+        )
+        
+        dialog.open()
+    
+    def exit_file_manager(self, *args):
+        """Exit the file manager."""
+        self.file_manager.close()
+    
+    def select_file_path(self, path):
+        """Handle file selection for upload."""
+        self.exit_file_manager()
+        
+        async def process_file():
+            try:
+                # Read file content
+                import os
+                file_size = os.path.getsize(path)
+                
+                # Check file size (limit to 10MB)
+                if file_size > 10 * 1024 * 1024:
+                    Clock.schedule_once(lambda dt: Notification.warning("File too large (max 10MB)"), 0)
+                    return
+                
+                # Read file content based on extension
+                file_ext = os.path.splitext(path)[1].lower()
+                
+                try:
+                    if file_ext == '.pdf':
+                        # Extract text from PDF
+                        from pypdf import PdfReader
+                        reader = PdfReader(path)
+                        content = ""
+                        for page in reader.pages:
+                            content += page.extract_text() + "\n"
+                    else:
+                        # Text-based files
+                        with open(path, 'r', encoding='utf-8') as f:
+                            content = f.read()
+                except Exception as e:
+                    error_msg = f"Error reading file: {str(e)}"
+                    Clock.schedule_once(lambda dt: Notification.error(error_msg), 0)
+                    return
+                
+                # Store in memory with metadata
+                file_name = os.path.basename(path)
+                metadata = {
+                    "source": "file_upload",
+                    "file_name": file_name,
+                    "file_path": path,
+                    "file_size": file_size,
+                    "file_type": file_ext
+                }
+                
+                # Add to memory system
+                memory_id = await self.chat_manager.memory_manager.remember(
+                    content=f"File content from {file_name}:\n\n{content}",
+                    auto_classify=True,
+                    metadata=metadata
+                )
+                
+                if memory_id:
+                    Clock.schedule_once(lambda dt: Notification.success(f"File '{file_name}' added to RAG memory"), 0)
+                    logger.info(f"Uploaded file to RAG: {file_name} ({file_size} bytes)")
+                else:
+                    Clock.schedule_once(lambda dt: Notification.error("Failed to add file to memory"), 0)
+                    
+            except Exception as e:
+                error_msg = f"Upload failed: {str(e)}"
+                logger.error(f"File upload error: {e}")
+                Clock.schedule_once(lambda dt: Notification.error(error_msg), 0)
+        
+        # Run in thread
+        def run_async():
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            loop.run_until_complete(process_file())
+            loop.close()
+        
+        thread = threading.Thread(target=run_async)
+        thread.daemon = True
+        thread.start()
 
     def _schedule_load_conversations(self, dt):
         """Schedule the async conversation loading in a thread-safe way."""
-        import threading
-
         def run_async_load():
             try:
                 # Create a new event loop for this thread
@@ -782,9 +1016,10 @@ class EnhancedChatScreen(MDScreen):
                 loop.run_until_complete(self._load_conversations_sync())
 
             except Exception as e:
+                error_msg = str(e)
                 logger.error(f"Failed to load conversations: {e}")
                 # Schedule UI update on main thread
-                Clock.schedule_once(lambda dt: self._handle_load_error(str(e)), 0)
+                Clock.schedule_once(lambda dt: self._handle_load_error(error_msg), 0)
             finally:
                 loop.close()
 
@@ -803,8 +1038,9 @@ class EnhancedChatScreen(MDScreen):
             Clock.schedule_once(lambda dt: self._update_conversation_list(sessions), 0)
 
         except Exception as e:
+            error_msg = str(e)
             logger.error(f"Failed to load conversations: {e}")
-            Clock.schedule_once(lambda dt: self._handle_load_error(str(e)), 0)
+            Clock.schedule_once(lambda dt: self._handle_load_error(error_msg), 0)
 
     def _update_conversation_list(self, sessions):
         """Update the conversation list UI (runs on main thread)."""
@@ -893,8 +1129,6 @@ class EnhancedChatScreen(MDScreen):
             # Close drawer immediately for better UX
             self.nav_drawer.set_state("close")
 
-            import threading
-
             def run_async_select():
                 try:
                     loop = asyncio.new_event_loop()
@@ -903,9 +1137,10 @@ class EnhancedChatScreen(MDScreen):
                         self._select_conversation_async(conversation_data, loading_widget)
                     )
                 except Exception as e:
+                    error_msg = f"Failed to load conversation: {str(e)}"
                     logger.error(f"Failed to select conversation: {e}")
                     Clock.schedule_once(
-                        lambda dt: Notification.error(f"Failed to load conversation: {str(e)}"), 0
+                        lambda dt: Notification.error(error_msg), 0
                     )
                     # Remove loading widget on error
                     Clock.schedule_once(
@@ -1009,10 +1244,11 @@ class EnhancedChatScreen(MDScreen):
             for content, role, timestamp in messages:
                 self._add_message_widget_sync(content, role, timestamp)
 
-            # Update title using stored toolbar reference
+            # Update title using stored toolbar reference with model info
             try:
                 if hasattr(self, "toolbar") and self.toolbar:
-                    self.toolbar.title = conversation_data["title"]
+                    provider_info = self._get_provider_model_info()
+                    self.toolbar.title = f"{conversation_data['title']} - {provider_info}"
                 else:
                     logger.warning("Toolbar reference not available")
             except Exception as e:
@@ -1105,8 +1341,6 @@ class EnhancedChatScreen(MDScreen):
     def _create_new_chat_sync(self):
         """Create new chat synchronously (fallback)."""
         try:
-            import threading
-
             def run_async_create():
                 try:
                     loop = asyncio.new_event_loop()
@@ -1177,25 +1411,15 @@ class EnhancedChatScreen(MDScreen):
             logger.error(f"Failed to add new chat to UI: {e}")
 
     def _get_provider_model_info(self):
-        """Get current provider and model information."""
+        """Get current provider and model information from chat manager."""
         try:
-            from src.core.config import config
-
-            provider = config.providers.default_provider
-
-            # Get model info based on provider
-            if provider == "ollama":
-                models = config.providers.ollama_models
-                model = models[0] if models else "Unknown"
-            elif provider == "openai":
-                models = config.providers.openai_models
-                model = models[0] if models else "Unknown"
-            elif provider == "lmstudio":
-                model = "LMStudio"
+            # Get actual current model from chat manager
+            if self.chat_manager:
+                provider = self.chat_manager.current_provider
+                model = self.chat_manager.current_model
+                return f"{provider.title()}: {model}"
             else:
-                model = "Unknown"
-
-            return f"{provider.title()}/{model}"
+                return "No Model Selected"
         except Exception as e:
             logger.warning(f"Failed to get provider info: {e}")
             return "Unknown Provider"
@@ -1234,8 +1458,6 @@ class EnhancedChatScreen(MDScreen):
     def _clear_all_conversations(self, dialog):
         """Clear all conversations."""
         dialog.dismiss()
-
-        import threading
 
         def run_async_clear():
             try:
@@ -1296,116 +1518,8 @@ class EnhancedChatScreen(MDScreen):
             logger.error(f"Failed to clear conversations UI: {e}")
             Notification.error("Failed to update UI after clearing conversations")
 
-    def _show_provider_switcher(self, *args):
-        """Show provider/model switcher dialog."""
-        from kivymd.uix.button import MDFlatButton, MDRaisedButton
-
-        content = MDBoxLayout(
-            orientation="vertical", spacing=dp(10), size_hint_y=None, height=dp(300)
-        )
-
-        # Current provider info
-        current_provider = self._get_provider_model_info()
-        current_label = MDLabel(
-            text=f"Current: {current_provider}",
-            theme_text_color="Primary",
-            size_hint_y=None,
-            height=dp(30),
-        )
-        content.add_widget(current_label)
-
-        # Provider options
-        self.selected_provider_value = None
-        try:
-            from src.core.config import config
-
-            providers = []
-            if config.providers.ollama_enabled:
-                for model in config.providers.ollama_models:
-                    providers.append(("ollama", model))
-            if config.providers.openai_enabled:
-                for model in config.providers.openai_models:
-                    providers.append(("openai", model))
-            if config.providers.lmstudio_enabled:
-                providers.append(("lmstudio", "LMStudio"))
-
-            # Button selection for providers
-            for provider, model in providers:
-                provider_button = MDFlatButton(
-                    text=f"{provider.title()}/{model}",
-                    size_hint_y=None,
-                    height=dp(40),
-                    on_release=lambda x, p=provider, m=model: self._select_provider_option(x, p, m),
-                )
-
-                # Highlight current provider
-                if provider == config.providers.default_provider and model in getattr(
-                    config.providers, f"{provider}_models", []
-                ):
-                    provider_button.md_bg_color = (0.2, 0.6, 0.8, 0.3)  # Light blue highlight
-
-                content.add_widget(provider_button)
-
-        except Exception as e:
-            logger.error(f"Failed to load provider options: {e}")
-            error_label = MDLabel(text="Failed to load provider options", theme_text_color="Error")
-            content.add_widget(error_label)
-
-        self.provider_dialog = MDDialog(
-            title="Switch Provider/Model",
-            type="custom",
-            content_cls=content,
-            buttons=[
-                MDRaisedButton(text="Cancel", on_release=lambda x: self.provider_dialog.dismiss()),
-                MDRaisedButton(text="Switch", on_release=lambda x: self._switch_provider()),
-            ],
-        )
-        self.provider_dialog.open()
-
-    def _select_provider_option(self, button, provider, model):
-        """Select a provider option."""
-        self.selected_provider_value = f"{provider}:{model}"
-
-        # Update button colors to show selection
-        parent = button.parent
-        if parent:
-            for child in parent.children:
-                if hasattr(child, "md_bg_color"):
-                    child.md_bg_color = (0, 0, 0, 0)  # Reset background
-            button.md_bg_color = (0.2, 0.8, 0.2, 0.3)  # Green highlight for selection
-
-    def _switch_provider(self):
-        """Switch to selected provider/model."""
-        try:
-            if self.selected_provider_value:
-                provider, model = self.selected_provider_value.split(":", 1)
-
-                # Update config
-                from src.core.config import config
-
-                config.providers.default_provider = provider
-
-                # Update toolbar title
-                provider_info = self._get_provider_model_info()
-                for child in self.children:
-                    if hasattr(child, "children"):
-                        for grandchild in child.children:
-                            if hasattr(grandchild, "title") and "Enhanced Chat" in grandchild.title:
-                                grandchild.title = f"Enhanced Chat - {provider_info}"
-                                break
-
-                Notification.success(f"Switched to {provider.title()}/{model}")
-            else:
-                Notification.warning("No provider selected")
-
-        except Exception as e:
-            logger.error(f"Failed to switch provider: {e}")
-            Notification.error("Failed to switch provider")
-
-        self.provider_dialog.dismiss()
-
     def _confirm_delete_conversation(self, conversation_data):
-        """Show confirmation dialog for deleting a single conversation."""
+        """Show confirmation dialog for deleting a conversation."""
         from kivymd.uix.button import MDRaisedButton
 
         content = MDBoxLayout(
@@ -1413,7 +1527,7 @@ class EnhancedChatScreen(MDScreen):
         )
 
         warning_label = MDLabel(
-            text=f"Delete conversation '{conversation_data.get('title', 'Untitled')}'?\nThis action cannot be undone.",
+            text=f"Delete '{conversation_data.get('title', 'Unknown')}'?\nThis action cannot be undone.",
             theme_text_color="Primary",
             adaptive_height=True,
             halign="center",
@@ -1429,17 +1543,15 @@ class EnhancedChatScreen(MDScreen):
                 MDRaisedButton(
                     text="Delete",
                     md_bg_color=(0.8, 0.2, 0.2, 1),  # Red color
-                    on_release=lambda x: self._delete_conversation(dialog, conversation_data),
+                    on_release=lambda x: self._delete_conversation(conversation_data, dialog),
                 ),
             ],
         )
         dialog.open()
 
-    def _delete_conversation(self, dialog, conversation_data):
-        """Delete a single conversation."""
+    def _delete_conversation(self, conversation_data, dialog):
+        """Delete a specific conversation."""
         dialog.dismiss()
-
-        import threading
 
         def run_async_delete():
             try:
@@ -1461,21 +1573,16 @@ class EnhancedChatScreen(MDScreen):
     async def _delete_conversation_async(self, conversation_data):
         """Async operation to delete a conversation."""
         try:
-            conversation_id = conversation_data["id"]
+            conversation_id = conversation_data.get("id")
+            if not conversation_id:
+                raise ValueError("No conversation ID provided")
 
             # Delete from session manager
-            success = await self.chat_manager.session_manager.delete_conversation(conversation_id)
+            await self.chat_manager.session_manager.delete_conversation(conversation_id)
+            logger.info(f"Deleted conversation: {conversation_id}")
 
-            if success:
-                # Update UI on main thread
-                Clock.schedule_once(
-                    lambda dt: self._remove_conversation_from_ui(conversation_data), 0
-                )
-                logger.info(f"Successfully deleted conversation: {conversation_id}")
-            else:
-                Clock.schedule_once(
-                    lambda dt: Notification.error("Conversation not found or already deleted"), 0
-                )
+            # Update UI on main thread
+            Clock.schedule_once(lambda dt: self._remove_conversation_from_ui(conversation_data), 0)
 
         except Exception as e:
             logger.error(f"Failed to delete conversation: {e}")
@@ -1486,45 +1593,33 @@ class EnhancedChatScreen(MDScreen):
     def _remove_conversation_from_ui(self, conversation_data):
         """Remove conversation from UI (runs on main thread)."""
         try:
-            conversation_id = conversation_data["id"]
-
+            conversation_id = conversation_data.get("id")
+            
             # Remove from active conversations
             if conversation_id in self.active_conversations:
                 del self.active_conversations[conversation_id]
 
             # Remove from chat list
-            for widget in self.chat_list.children[:]:  # Create a copy of the list
-                if (
-                    hasattr(widget, "conversation_data")
-                    and widget.conversation_data["id"] == conversation_id
-                ):
+            for widget in list(self.chat_list.children):
+                if (hasattr(widget, "conversation_data") and 
+                    widget.conversation_data.get("id") == conversation_id):
                     self.chat_list.remove_widget(widget)
                     break
 
-            # If this was the current conversation, switch to another one or create new
+            # If this was the current conversation, switch to another or create new
             if self.current_conversation_id == conversation_id:
                 if self.active_conversations:
-                    # Switch to the first available conversation
-                    first_conv_id = list(self.active_conversations.keys())[0]
-                    self._select_conversation_wrapper(self.active_conversations[first_conv_id])
+                    # Switch to first available conversation
+                    first_conv = list(self.active_conversations.values())[0]
+                    self._select_conversation_wrapper(first_conv)
                 else:
-                    # No conversations left, create a new one
-                    self.current_conversation_id = None
-                    self.messages_layout.clear_widgets()
+                    # No conversations left, create new one
                     self._create_new_chat_sync()
 
-            Notification.success(
-                f"Deleted conversation: {conversation_data.get('title', 'Untitled')}"
-            )
+            Notification.success("Conversation deleted")
+            logger.info(f"Successfully removed conversation from UI: {conversation_id}")
 
         except Exception as e:
             logger.error(f"Failed to remove conversation from UI: {e}")
             Notification.error("Failed to update UI after deleting conversation")
 
-    def _perform_scroll_to_bottom(self, dt):
-        """Optimized scroll to bottom helper."""
-        try:
-            self.messages_scroll.scroll_y = 0
-            self._pending_scroll = False
-        except AttributeError:
-            pass  # Widget might be destroyed

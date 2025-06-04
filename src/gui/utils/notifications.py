@@ -13,47 +13,56 @@ class Toast:
     @staticmethod
     def show(text: str, duration: float = 3.0):
         """Show a toast notification."""
-        # Get the root widget (screen manager)
-        from kivymd.app import MDApp
+        # Ensure this runs on the main thread
+        def _show_on_main_thread(dt):
+            try:
+                # Get the root widget (screen manager)
+                from kivymd.app import MDApp
 
-        app = MDApp.get_running_app()
+                app = MDApp.get_running_app()
 
-        if not hasattr(app, "screen_manager"):
-            return
+                if not hasattr(app, "screen_manager"):
+                    return
 
-        # Create toast container
-        toast_container = MDCard(
-            orientation="horizontal",
-            spacing=dp(10),
-            padding=dp(15),
-            size_hint=(None, None),
-            size=(dp(300), dp(50)),
-            elevation=8,
-            md_bg_color=(0.2, 0.2, 0.2, 0.95),
-            pos_hint={"center_x": 0.5, "y": 0.1},
-            opacity=0,
-        )
+                # Create toast container
+                toast_container = MDCard(
+                    orientation="horizontal",
+                    spacing=dp(10),
+                    padding=dp(15),
+                    size_hint=(None, None),
+                    size=(dp(300), dp(50)),
+                    elevation=8,
+                    md_bg_color=(0.2, 0.2, 0.2, 0.95),
+                    pos_hint={"center_x": 0.5, "y": 0.1},
+                    opacity=0,
+                )
 
-        # Toast text
-        toast_label = MDLabel(
-            text=text, theme_text_color="Primary", font_style="Body2", adaptive_width=True
-        )
+                # Toast text
+                toast_label = MDLabel(
+                    text=text, theme_text_color="Primary", font_style="Body2", adaptive_width=True
+                )
 
-        toast_container.add_widget(toast_label)
+                toast_container.add_widget(toast_label)
 
-        # Add to current screen
-        current_screen = app.screen_manager.current_screen
-        current_screen.add_widget(toast_container)
+                # Add to current screen
+                current_screen = app.screen_manager.current_screen
+                current_screen.add_widget(toast_container)
 
-        # Animate in
-        Animation(opacity=1, duration=0.3).start(toast_container)
+                # Animate in
+                Animation(opacity=1, duration=0.3).start(toast_container)
 
-        # Schedule removal
-        def remove_toast(dt):
-            Animation(opacity=0, duration=0.3).start(toast_container)
-            Clock.schedule_once(lambda dt2: current_screen.remove_widget(toast_container), 0.3)
+                # Schedule removal
+                def remove_toast(dt):
+                    Animation(opacity=0, duration=0.3).start(toast_container)
+                    Clock.schedule_once(lambda dt2: current_screen.remove_widget(toast_container), 0.3)
 
-        Clock.schedule_once(remove_toast, duration)
+                Clock.schedule_once(remove_toast, duration)
+            except Exception as e:
+                # Fallback to console logging if UI toast fails
+                print(f"Toast notification: {text}")
+        
+        # Always schedule on main thread
+        Clock.schedule_once(_show_on_main_thread, 0)
 
 
 class Notification:

@@ -219,7 +219,7 @@ class MemoryManager:
         query: str,
         memory_types: list[MemoryType] | None = None,
         limit: int = 10,
-        threshold: float = 0.7,
+        threshold: float = 0.3,
     ) -> list[Memory]:
         """Recall relevant memories based on query.
 
@@ -251,8 +251,15 @@ class MemoryManager:
                 memory.accessed_at = datetime.now()
                 await self.store.update(memory)
 
-            # Sort by relevance and importance
-            memories.sort(key=lambda m: (m.importance, m.accessed_at.timestamp()), reverse=True)
+            # Sort by relevance and importance, with priority for personal info
+            def memory_priority(memory):
+                base_score = (memory.importance, memory.accessed_at.timestamp())
+                # Boost personal info memories
+                if memory.metadata and memory.metadata.get("type") == "personal_info":
+                    return (base_score[0] + 0.5, base_score[1])  # Add 0.5 to importance
+                return base_score
+            
+            memories.sort(key=memory_priority, reverse=True)
 
             logger.info(f"Recalled {len(memories)} memories for query: {query[:50]}...")
             return memories[:limit]

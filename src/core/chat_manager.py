@@ -4,7 +4,9 @@ from datetime import datetime
 from typing import Any
 
 from src.core.config import settings
+from src.core.model_manager import ModelManager
 from src.core.models import MessageRole
+from src.core.rag_system import RAGSystem, RAGConfig
 from src.core.session_manager import ConversationSession, SessionManager
 from src.mcp.manager import MCPManager
 from src.memory import MemoryType
@@ -31,6 +33,11 @@ class ChatManager:
         self.memory_manager = MemoryManager()
         self.mcp_manager = MCPManager()
         self.session_manager = SessionManager()
+        
+        # Initialize model management and RAG
+        self.model_manager = ModelManager(self)
+        self.rag_system = RAGSystem(self.memory_manager)
+        self.rag_enabled = True
 
         # Current session
         self.current_session: ConversationSession | None = None
@@ -43,6 +50,9 @@ class ChatManager:
 
         # Initialize providers
         self._initialize_providers()
+        
+        # Set provider reference for model manager
+        self.model_manager.set_chat_manager(self)
 
         # Session manager will be started on first use
 
@@ -130,6 +140,324 @@ class ChatManager:
     def is_provider_available(self, provider_name: str) -> bool:
         """Check if a provider is available."""
         return provider_name in self.providers
+    
+    # Model Management Methods
+    
+    async def discover_models(self, force_refresh: bool = False) -> bool:
+        """Discover available models from all providers."""
+        return await self.model_manager.discover_models(force_refresh)
+    
+    def get_available_models(self, provider: str = None):
+        """Get available models, optionally filtered by provider."""
+        return self.model_manager.get_available_models(provider)
+    
+    def get_model_info(self, model_name: str, provider: str = None):
+        """Get detailed information about a model."""
+        return self.model_manager.get_model_info(model_name, provider)
+    
+    async def select_best_model(self, strategy=None, requirements=None):
+        """Automatically select the best available model."""
+        return await self.model_manager.select_best_model(strategy, requirements)
+    
+    def set_model(self, model_name: str, provider: str = None) -> bool:
+        """Set the current model and provider."""
+        from src.core.model_manager import ModelStatus
+        
+        logger.info(f"Attempting to switch to model: {model_name} (provider: {provider})")
+        
+        model_info = self.model_manager.get_model_info(model_name, provider)
+        if not model_info:
+            logger.error(f"Model not found: {model_name} (provider: {provider})")
+            # Debug: show what models are actually available
+            self.model_manager.debug_model_registry()
+            return False
+            
+        if model_info.status != ModelStatus.AVAILABLE:
+            logger.error(f"Model not available: {model_info.full_name} (status: {model_info.status})")
+            return False
+            
+        # Check if the provider instance exists
+        if model_info.provider not in self.providers:
+            logger.error(f"Provider not initialized: {model_info.provider}")
+            return False
+            
+        self.current_model = model_info.name
+        self.current_provider = model_info.provider
+        logger.info(f"Successfully switched to model: {model_info.full_name}")
+        return True
+    
+    def get_provider_health(self):
+        """Get health status of all providers."""
+        return {name: self.model_manager.get_provider_info(name) 
+                for name in self.providers.keys()}
+    
+    # RAG System Methods
+    
+    def enable_rag(self, enabled: bool = True):
+        """Enable or disable RAG system."""
+        self.rag_enabled = enabled
+        logger.info(f"RAG system {'enabled' if enabled else 'disabled'}")
+    
+    def configure_rag(self, config: RAGConfig):
+        """Configure RAG system behavior."""
+        self.rag_system.update_config(config)
+        logger.info("RAG system configuration updated")
+    
+    def get_rag_stats(self):
+        """Get RAG system performance statistics."""
+        return self.rag_system.get_stats()
+    
+    def send_message_with_rag(
+        self, 
+        content: str, 
+        provider: str = None, 
+        model: str = None,
+        stream: bool = False
+    ):
+        """Send message with RAG enhancement."""
+        if not self.rag_enabled:
+            if stream:
+                return self._send_message_stream_generator(content, provider, model)
+            else:
+                return self._send_message_non_stream(content, provider, model)
+        
+        if stream:
+            # Return the async generator directly
+            return self._send_rag_message_stream_generator(content, provider, model)
+        else:
+            return self._send_rag_message_non_stream(content, provider, model)
+    
+    async def _send_rag_message_stream_generator(self, content: str, provider: str = None, model: str = None):
+        """Async generator for RAG-enhanced streaming."""
+        async for chunk in self._send_rag_message_stream(content, provider, model):
+            yield chunk
+    
+    async def _send_rag_message_stream(self, content: str, provider: str = None, model: str = None):
+        """Send RAG-enhanced message with streaming response."""
+        # Ensure we have a session
+        if not self.current_session:
+            await self.create_session()
+
+        try:
+            provider = provider or self.current_provider
+            model = model or self.current_model
+
+            # Get provider instance
+            if provider not in self.providers:
+                raise ValueError(f"Provider '{provider}' not available")
+
+            llm_provider = self.providers[provider]
+
+            # Get conversation history for RAG context
+            conversation_history = []
+            if self.current_session:
+                recent_messages = await self.current_session.get_messages(limit=10)
+                conversation_history = [
+                    Message(role=msg.role.value if hasattr(msg.role, 'value') else str(msg.role), content=msg.content) 
+                    for msg in recent_messages
+                ]
+
+            # Get RAG context first
+            logger.info(f"Retrieving RAG context for query: {content[:50]}...")
+            context = await self.rag_system.retrieve_context(
+                query=content,
+                conversation_history=conversation_history
+            )
+            
+            logger.info(f"Retrieved {len(context.memories)} memories for RAG context")
+            
+            # Build enhanced messages with RAG context
+            enhanced_messages = await self._build_rag_enhanced_messages(content, context)
+
+            # Add user message to session with RAG metadata
+            user_msg = await self.current_session.add_message(
+                role=MessageRole.USER,
+                content=content,
+                metadata={
+                    "rag_enabled": True, 
+                    "memories_used": len(context.memories),
+                    "retrieval_time_ms": context.retrieval_time_ms
+                }
+            )
+
+            # Create placeholder assistant message
+            assistant_msg = await self.current_session.add_message(
+                role=MessageRole.ASSISTANT, 
+                content="", 
+                model=model, 
+                metadata={"status": "pending", "rag_enabled": True}
+            )
+
+            response_content = ""
+
+            # Stream the response with RAG-enhanced context
+            logger.info(f"Starting RAG-enhanced stream with {len(enhanced_messages)} context messages")
+            chunk_count = 0
+            try:
+                async for chunk in llm_provider.stream_complete(
+                    messages=enhanced_messages, 
+                    model=model, 
+                    temperature=0.7, 
+                    max_tokens=1000
+                ):
+                    chunk_count += 1
+                    response_content += chunk
+                    # Update message periodically
+                    await self.current_session.update_message(
+                        assistant_msg.id, content=response_content
+                    )
+                    yield chunk  # Yield for UI streaming
+
+                logger.info(f"RAG stream completed with {chunk_count} chunks, total length: {len(response_content)}")
+            except Exception as stream_error:
+                logger.error(f"Error during RAG streaming (after {chunk_count} chunks): {stream_error}")
+                raise
+
+            # Final update with RAG metadata
+            await self.current_session.update_message(
+                assistant_msg.id, 
+                content=response_content, 
+                metadata={
+                    "status": "completed",
+                    "rag_enabled": True,
+                    "memories_used": len(context.memories),
+                    "retrieval_time_ms": context.retrieval_time_ms
+                }
+            )
+
+            # Store conversation in memory for future context
+            await self._store_conversation_memory(content, response_content)
+
+        except Exception as e:
+            logger.error(f"Error sending RAG-enhanced streaming message: {e}")
+            # Fallback to regular streaming
+            async for chunk in self._send_message_stream(content, provider, model):
+                yield chunk
+    
+    async def _send_rag_message_non_stream(self, content: str, provider: str = None, model: str = None):
+        """Send RAG-enhanced message with non-streaming response."""
+        # Get conversation history for context
+        conversation_history = []
+        if self.current_session:
+            recent_messages = await self.current_session.get_messages(limit=10)
+            conversation_history = [
+                Message(role=msg.role.value if hasattr(msg.role, 'value') else str(msg.role), content=msg.content) 
+                for msg in recent_messages
+            ]
+        
+        # Use RAG to generate enhanced response
+        try:
+            provider = provider or self.current_provider
+            model = model or self.current_model
+            llm_provider = self.providers.get(provider)
+            
+            if not llm_provider:
+                raise ValueError(f"Provider '{provider}' not available")
+            
+            response, context = await self.rag_system.generate_rag_response(
+                query=content,
+                conversation_history=conversation_history,
+                llm_provider=llm_provider,
+                model=model,
+                system_prompt=self.system_prompt if self.system_prompt_memory_integration else None
+            )
+            
+            # Store response in session if we have one
+            if self.current_session:
+                user_msg = await self.current_session.add_message(
+                    role=MessageRole.USER,
+                    content=content,
+                    metadata={"rag_enabled": True, "memories_used": len(context.memories)}
+                )
+                
+                assistant_msg = await self.current_session.add_message(
+                    role=MessageRole.ASSISTANT,
+                    content=response,
+                    model=model,
+                    metadata={
+                        "rag_enabled": True,
+                        "memories_used": len(context.memories),
+                        "retrieval_time_ms": context.retrieval_time_ms,
+                        "rag_reasoning": context.reasoning
+                    }
+                )
+            
+            # Store in memory for future retrieval
+            await self._store_conversation_memory(content, response)
+            
+            return response
+            
+        except Exception as e:
+            logger.error(f"RAG-enhanced message failed: {e}")
+            # Fallback to regular message sending
+            return await self._send_message_non_stream(content, provider, model)
+    
+    async def _build_rag_enhanced_messages(self, query: str, rag_context) -> list[Message]:
+        """Build messages enhanced with RAG context."""
+        messages = []
+
+        # Start with system prompt
+        system_content = self.system_prompt if self.system_prompt else (
+            "You are Neuromancer, an advanced AI assistant with exceptional memory "
+            "and tool-use capabilities. You have access to long-term memory and can "
+            "execute various tools through MCP (Model Context Protocol) servers."
+        )
+
+        # Add RAG context to system prompt
+        if rag_context.memories:
+            system_content += "\n\n**IMPORTANT: You have access to the following relevant information from your memory. Use this information to answer the user's question accurately:**\n"
+            
+            # Organize memories by type for better presentation
+            personal_memories = []
+            file_memories = []
+            other_memories = []
+            
+            for memory in rag_context.memories:
+                if memory.metadata and memory.metadata.get("type") == "personal_info":
+                    personal_memories.append(memory)
+                elif memory.metadata and memory.metadata.get("source") == "file_upload":
+                    file_memories.append(memory)
+                else:
+                    other_memories.append(memory)
+            
+            # Add personal info first (most important)
+            if personal_memories:
+                system_content += "\n**Personal Information:**\n"
+                for memory in personal_memories:
+                    system_content += f"- {memory.content}\n"
+            
+            # Add file information
+            if file_memories:
+                system_content += "\n**Uploaded File Content:**\n"
+                for memory in file_memories:
+                    file_name = memory.metadata.get("file_name", "uploaded file")
+                    system_content += f"- From {file_name}: {memory.content[:200]}{'...' if len(memory.content) > 200 else ''}\n"
+            
+            # Add other relevant memories
+            if other_memories:
+                system_content += "\n**Other Relevant Information:**\n"
+                for memory in other_memories[:3]:  # Limit to avoid clutter
+                    system_content += f"- {memory.content[:150]}{'...' if len(memory.content) > 150 else ''}\n"
+            
+            system_content += "\n**CRITICAL: Always use the above information to provide accurate answers. If the user asks about their name or personal details, refer to the Personal Information section. If they ask about uploaded files, refer to the Uploaded File Content section.**"
+
+        messages.append(Message(role="system", content=system_content))
+
+        # Add conversation history
+        if self.current_session:
+            session_messages = await self.current_session.get_messages(limit=20)
+            for msg in session_messages:
+                # Handle role conversion safely
+                if hasattr(msg.role, "value"):
+                    role_str = msg.role.value
+                else:
+                    role_str = str(msg.role)
+                messages.append(Message(role=role_str, content=msg.content))
+
+        # Add current user query
+        messages.append(Message(role="user", content=query))
+
+        return messages
 
     async def create_session(self, title: str | None = None, template_id: int | None = None):
         """Create a new chat session."""
@@ -494,14 +822,6 @@ class ChatManager:
             return True
         return False
 
-    async def set_model(self, model: str):
-        """Set the current model.
-
-        Args:
-            model: Model name
-        """
-        self.current_model = model
-        logger.info(f"Set model to: {model}")
 
     async def list_providers(self) -> list[str]:
         """List available providers.
