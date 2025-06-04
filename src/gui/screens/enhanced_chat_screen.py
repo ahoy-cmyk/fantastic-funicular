@@ -34,6 +34,8 @@ class ChatListItem(TwoLineListItem):
         self.conversation_data = conversation_data
         self.on_select_callback = on_select_callback
         self.on_delete_callback = on_delete_callback
+        self._long_press_clock = None
+        self._touch_time = None
 
         # Format title and subtitle
         title = conversation_data.get("title", "Untitled Chat")
@@ -50,39 +52,35 @@ class ChatListItem(TwoLineListItem):
 
         super().__init__(text=title, secondary_text=subtitle, on_release=self._on_select, **kwargs)
 
-        # Add delete functionality on long press
-        self.bind(on_long_press=self._on_long_press)
-
-    def _on_select(self):
+    def _on_select(self, *args):
         """Handle chat selection."""
         if self.on_select_callback:
             self.on_select_callback(self.conversation_data)
 
-    def _on_long_press(self, *args):
-        """Handle long press for delete option."""
-        if self.on_delete_callback:
-            self.on_delete_callback(self.conversation_data)
-
     def on_touch_down(self, touch):
-        """Handle touch events for long press detection."""
+        """Handle touch down for long press detection."""
         if self.collide_point(*touch.pos):
-            touch.grab(self)
+            # Store touch time
+            self._touch_time = Clock.get_time()
             # Schedule long press check
-            Clock.schedule_once(lambda dt: self._check_long_press(touch), 1.0)
-            return True
+            self._long_press_clock = Clock.schedule_once(self._check_long_press, 1.0)
+        # Always call parent to maintain proper touch handling
         return super().on_touch_down(touch)
 
     def on_touch_up(self, touch):
         """Handle touch up to cancel long press."""
-        if touch.grab_current is self:
-            touch.ungrab(self)
-            Clock.unschedule(self._check_long_press)
+        # Cancel long press if scheduled
+        if self._long_press_clock:
+            self._long_press_clock.cancel()
+            self._long_press_clock = None
+        # Always call parent to maintain proper touch handling
         return super().on_touch_up(touch)
 
-    def _check_long_press(self, touch):
+    def _check_long_press(self, dt):
         """Check if long press occurred."""
-        if touch.grab_current is self:
-            self._on_long_press()
+        if self.on_delete_callback:
+            self.on_delete_callback(self.conversation_data)
+        self._long_press_clock = None
 
 
 class MemoryContextCard(MDCard):
@@ -134,13 +132,24 @@ class MemoryContextCard(MDCard):
 class EnhancedChatScreen(MDScreen):
     """Enhanced chat screen with multi-chat support and memory integration."""
 
-    def __init__(self, **kwargs):
+    def __init__(self, app_instance=None, **kwargs):
         super().__init__(**kwargs)
         self.name = "enhanced_chat"
 
-        # Initialize managers
-        self.chat_manager = ChatManager()
-        self.safe_memory = create_safe_memory_manager(self._memory_error_callback)
+        # Use pre-initialized managers from app if available, otherwise create new ones
+        if app_instance and hasattr(app_instance, "_chat_manager") and app_instance._chat_manager:
+            self.chat_manager = app_instance._chat_manager
+            logger.info("Using pre-initialized chat manager")
+        else:
+            self.chat_manager = ChatManager()
+            logger.info("Creating new chat manager")
+
+        if app_instance and hasattr(app_instance, "_safe_memory") and app_instance._safe_memory:
+            self.safe_memory = app_instance._safe_memory
+            logger.info("Using pre-initialized memory manager")
+        else:
+            self.safe_memory = create_safe_memory_manager(self._memory_error_callback)
+            logger.info("Creating new memory manager")
 
         # Chat management
         self.active_conversations = {}  # conversation_id -> conversation_data
@@ -154,7 +163,7 @@ class EnhancedChatScreen(MDScreen):
         self.build_ui()
 
         # Load existing conversations (schedule the async operation safely)
-        Clock.schedule_once(self._schedule_load_conversations, 0.1)
+        Clock.schedule_once(self._schedule_load_conversations, 0.05)
 
     def on_enter(self, *args):
         """Called when entering the screen - reset shutdown flag."""
@@ -163,6 +172,11 @@ class EnhancedChatScreen(MDScreen):
     def on_pre_leave(self, *args):
         """Called when leaving the screen - cleanup async operations."""
         self._is_shutting_down = True
+        # Cancel any pending long press events
+        for child in self.chat_list.children:
+            if hasattr(child, "_long_press_clock") and child._long_press_clock:
+                child._long_press_clock.cancel()
+                child._long_press_clock = None
 
     def on_leave(self, *args):
         """Called when screen is left - ensure cleanup."""
@@ -179,6 +193,11 @@ class EnhancedChatScreen(MDScreen):
             radius=(0, 16, 16, 0),  # Rounded corners on the right
             elevation=ELEVATION["drawer"],
             close_on_click=True,  # Close when clicking outside
+            state="close",  # Explicitly start in closed state
+            opening_transition="out_cubic",  # Faster, smoother transition
+            closing_transition="out_cubic",
+            opening_time=0.2,  # Faster animation
+            closing_time=0.2,
         )
 
         # Chat list in drawer
@@ -232,7 +251,7 @@ class EnhancedChatScreen(MDScreen):
         # Add action buttons to toolbar
         self.toolbar.right_action_items = [
             ["swap-horizontal", lambda x: self._show_provider_switcher()],
-            ["memory", lambda x: self._show_memory_panel()],
+            ["memory", lambda x: self._go_to_memory_screen()],
             ["cog", lambda x: self._go_to_settings()],
         ]
 
@@ -285,8 +304,21 @@ class EnhancedChatScreen(MDScreen):
         # This should make it appear on top of the content
         self.add_widget(self.nav_drawer)
 
+        # Force proper drawer positioning after layout
+        Clock.schedule_once(self._fix_drawer_position, 0.1)
+
         # Apply comprehensive theme fixes
         apply_chat_theme_fixes(self)
+
+    def _fix_drawer_position(self, dt):
+        """Fix drawer positioning to prevent showing on right first."""
+        try:
+            # Ensure drawer is properly closed and positioned
+            self.nav_drawer.set_state("close", animation=False)
+            # Force a layout update
+            self.nav_drawer._update_pos()
+        except Exception as e:
+            logger.warning(f"Could not fix drawer position: {e}")
 
     def _on_focus_change(self, instance, focus):
         """Handle focus changes to set up keyboard handling."""
@@ -356,6 +388,27 @@ class EnhancedChatScreen(MDScreen):
         logger.warning(f"Memory operation failed - {operation}: {error}")
         Notification.warning(f"Memory: {operation} - {error[:50]}...")
 
+    async def _get_recent_conversation_context(self) -> list[str]:
+        """Get recent conversation messages for context."""
+        try:
+            if not self.current_conversation_id or not self.chat_manager.current_session:
+                return []
+
+            # Get recent messages from current session
+            recent_messages = await self.chat_manager.current_session.get_messages(limit=5)
+
+            # Extract content from messages
+            context = []
+            for msg in recent_messages[-5:]:  # Last 5 messages
+                if hasattr(msg, "content") and msg.content:
+                    context.append(str(msg.content))
+
+            return context
+
+        except Exception as e:
+            logger.error(f"Failed to get conversation context: {e}")
+            return []
+
     def _send_message_wrapper(self, *args):
         """Wrapper for send message that handles async safely."""
         message_text = self.message_input.text.strip()
@@ -398,21 +451,29 @@ class EnhancedChatScreen(MDScreen):
             if self._is_shutting_down:
                 logger.info("Skipping message send - app is shutting down")
                 return
-            # Get relevant memories for context (use lower threshold for better recall)
+            # Get relevant memories for context (use higher threshold for speed)
             relevant_memories = await self.safe_memory.safe_recall(
-                query=message_text, threshold=0.3, limit=5
+                query=message_text, threshold=0.5, limit=3
             )
 
             # Show memory context if memories found (schedule on main thread)
             if relevant_memories:
                 Clock.schedule_once(lambda dt: self._show_memory_context(relevant_memories), 0)
 
-                # Store this user message in memory
+            # Use intelligent memory analysis to automatically detect and store significant information
+            conversation_context = await self._get_recent_conversation_context()
+            intelligent_memories = await self.safe_memory.safe_intelligent_remember(
+                content=message_text, conversation_context=conversation_context
+            )
+
+            # Also store basic user message if no intelligent memories were created
+            if not intelligent_memories:
                 from src.memory import MemoryType
 
                 await self.safe_memory.safe_remember(
                     content=message_text,
                     memory_type=MemoryType.SHORT_TERM,
+                    importance=0.5,
                     metadata={
                         "conversation_id": self.current_conversation_id,
                         "timestamp": datetime.now().isoformat(),
@@ -422,6 +483,7 @@ class EnhancedChatScreen(MDScreen):
 
             # Send to chat manager with streaming
             response_text = ""
+            chunk_count = 0
             try:
                 async for chunk in self.chat_manager.send_message(message_text, stream=True):
                     # Check for shutdown during streaming
@@ -430,7 +492,14 @@ class EnhancedChatScreen(MDScreen):
                         break
 
                     response_text += chunk
-                    if assistant_widget and hasattr(assistant_widget, "content_label"):
+                    chunk_count += 1
+
+                    # Update UI less frequently for better performance (every 3 chunks)
+                    if (
+                        chunk_count % 3 == 0
+                        and assistant_widget
+                        and hasattr(assistant_widget, "content_label")
+                    ):
                         # Create proper closure to capture current response_text value
                         def update_text(dt, text=response_text):
                             try:
@@ -445,6 +514,16 @@ class EnhancedChatScreen(MDScreen):
 
                         if not self._is_shutting_down:
                             Clock.schedule_once(update_text, 0)
+
+                # Final update to ensure all text is shown
+                if (
+                    assistant_widget
+                    and hasattr(assistant_widget, "content_label")
+                    and not self._is_shutting_down
+                ):
+                    Clock.schedule_once(
+                        lambda dt: setattr(assistant_widget.content_label, "text", response_text), 0
+                    )
             except Exception as e:
                 logger.error(f"Error during message streaming: {e}")
                 # Update assistant widget with error message
@@ -458,19 +537,30 @@ class EnhancedChatScreen(MDScreen):
                     )
                 return
 
-            # Store assistant response in memory
+            # Store assistant response in memory using intelligent analysis
             if response_text:
-                from src.memory import MemoryType
+                # Use intelligent analysis for assistant responses too
+                conversation_context = await self._get_recent_conversation_context()
+                conversation_context.append(message_text)  # Include the user message
 
-                await self.safe_memory.safe_remember(
-                    content=response_text,
-                    memory_type=MemoryType.SHORT_TERM,
-                    metadata={
-                        "conversation_id": self.current_conversation_id,
-                        "timestamp": datetime.now().isoformat(),
-                        "type": "assistant_response",
-                    },
+                intelligent_memories = await self.safe_memory.safe_intelligent_remember(
+                    content=response_text, conversation_context=conversation_context
                 )
+
+                # Store basic assistant response if no intelligent memories were created
+                if not intelligent_memories:
+                    from src.memory import MemoryType
+
+                    await self.safe_memory.safe_remember(
+                        content=response_text,
+                        memory_type=MemoryType.SHORT_TERM,
+                        importance=0.6,  # Assistant responses are moderately important
+                        metadata={
+                            "conversation_id": self.current_conversation_id,
+                            "timestamp": datetime.now().isoformat(),
+                            "type": "assistant_response",
+                        },
+                    )
 
             # Update conversation title if this is the first message
             if self.current_conversation_id in self.active_conversations:
@@ -659,10 +749,11 @@ class EnhancedChatScreen(MDScreen):
         thread.daemon = True
         thread.start()
 
-    def _go_to_memory_screen(self, dialog):
+    def _go_to_memory_screen(self, dialog=None):
         """Navigate to memory management screen."""
-        dialog.dismiss()
-        self.manager.current = "advanced_memory"
+        if dialog:
+            dialog.dismiss()
+        self.manager.current = "memory"
 
     def _go_to_settings(self):
         """Navigate to settings screen."""

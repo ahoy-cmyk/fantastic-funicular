@@ -26,6 +26,10 @@ class SplashScreen(MDScreen):
         super().__init__(**kwargs)
         self.on_complete = on_complete
         self.build_ui()
+        # Start animations after UI is built
+        from kivy.clock import Clock
+
+        Clock.schedule_once(self._start_animations, 0.1)
 
     def build_ui(self):
         """Build the splash screen UI."""
@@ -43,7 +47,7 @@ class SplashScreen(MDScreen):
             orientation="vertical", spacing=dp(10), adaptive_height=True, size_hint_y=None
         )
 
-        # Main title
+        # Main title with animation
         self.title_label = MDLabel(
             text="NEUROMANCER",
             font_style="H3",
@@ -51,6 +55,7 @@ class SplashScreen(MDScreen):
             halign="center",
             size_hint_y=None,
             height=dp(60),
+            opacity=0,  # Start invisible for fade-in effect
         )
 
         # Subtitle
@@ -61,10 +66,23 @@ class SplashScreen(MDScreen):
             halign="center",
             size_hint_y=None,
             height=dp(30),
+            opacity=0,  # Start invisible for fade-in effect
+        )
+
+        # Features list
+        self.features_label = MDLabel(
+            text="• Advanced Memory System  • Multi-Model Support  • Real-time Chat",
+            font_style="Caption",
+            theme_text_color="Hint",
+            halign="center",
+            size_hint_y=None,
+            height=dp(20),
+            opacity=0,  # Start invisible
         )
 
         title_container.add_widget(self.title_label)
         title_container.add_widget(self.subtitle_label)
+        title_container.add_widget(self.features_label)
 
         # Progress section
         progress_container = MDBoxLayout(
@@ -78,7 +96,11 @@ class SplashScreen(MDScreen):
 
         # Progress bar
         self.progress_bar = MDProgressBar(
-            value=0, size_hint_y=None, height=dp(6), color=(0.2, 0.6, 1.0, 1.0)  # Professional blue
+            value=0,
+            size_hint_y=None,
+            height=dp(6),
+            color=(0.2, 0.6, 1.0, 1.0),  # Professional blue
+            opacity=0,  # Start invisible
         )
 
         # Progress text
@@ -91,8 +113,19 @@ class SplashScreen(MDScreen):
             height=dp(20),
         )
 
+        # Status details
+        self.status_label = MDLabel(
+            text="Starting up...",
+            font_style="Caption",
+            theme_text_color="Hint",
+            halign="center",
+            size_hint_y=None,
+            height=dp(15),
+        )
+
         progress_container.add_widget(self.progress_bar)
         progress_container.add_widget(self.progress_label)
+        progress_container.add_widget(self.status_label)
 
         # Version info
         self.version_label = MDLabel(
@@ -125,11 +158,13 @@ class SplashScreen(MDScreen):
         if hasattr(self, "progress_bar"):
             Animation(value=value, duration=0.3, t="out_cubic").start(self.progress_bar)
 
-    def set_progress(self, value: float, text: str = None):
+    def set_progress(self, value: float, text: str = None, status: str = None):
         """Set progress value and optional text."""
         self.progress_value = min(100, max(0, value))
         if text:
             self.progress_text = text
+        if status and hasattr(self, "status_label"):
+            self.status_label.text = status
 
     async def start_loading_sequence(self):
         """Start the loading sequence with realistic progress."""
@@ -152,3 +187,28 @@ class SplashScreen(MDScreen):
 
         if self.on_complete:
             self.on_complete()
+
+    def _start_animations(self, dt):
+        """Start entrance animations for a professional look."""
+        # Animate title
+        Animation(opacity=1, duration=0.8, t="out_quad").start(self.title_label)
+
+        # Animate subtitle with delay
+        from kivy.clock import Clock
+
+        Clock.schedule_once(
+            lambda dt: Animation(opacity=1, duration=0.6, t="out_quad").start(self.subtitle_label),
+            0.3,
+        )
+
+        # Animate features with delay
+        Clock.schedule_once(
+            lambda dt: Animation(opacity=1, duration=0.6, t="out_quad").start(self.features_label),
+            0.6,
+        )
+
+        # Animate progress bar area
+        Clock.schedule_once(
+            lambda dt: Animation(opacity=1, duration=0.4, t="out_quad").start(self.progress_bar),
+            0.9,
+        )

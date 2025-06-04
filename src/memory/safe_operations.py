@@ -33,6 +33,7 @@ class SafeMemoryManager:
         memory_type: MemoryType = MemoryType.SHORT_TERM,
         importance: float = 0.5,
         metadata: dict[str, Any] | None = None,
+        auto_classify: bool = False,
     ) -> str | None:
         """Safely store a memory with error handling."""
         try:
@@ -41,7 +42,11 @@ class SafeMemoryManager:
                 return None
 
             memory_id = await self.memory_manager.remember(
-                content=content, memory_type=memory_type, importance=importance, metadata=metadata
+                content=content,
+                memory_type=memory_type,
+                importance=importance,
+                metadata=metadata,
+                auto_classify=auto_classify,
             )
 
             if memory_id:
@@ -55,6 +60,31 @@ class SafeMemoryManager:
             error_msg = f"Memory storage failed: {str(e)}"
             self.error_callback("Store Memory", error_msg)
             return None
+
+    async def safe_intelligent_remember(
+        self,
+        content: str,
+        conversation_context: list[str] = None,
+    ) -> list[str]:
+        """Safely use intelligent memory analysis with error handling."""
+        try:
+            if not content or not content.strip():
+                logger.debug("Empty content provided for intelligent memory analysis")
+                return []
+
+            memory_ids = await self.memory_manager.intelligent_remember(
+                content=content, conversation_context=conversation_context
+            )
+
+            if memory_ids:
+                logger.info(f"Intelligent analysis created {len(memory_ids)} memories")
+
+            return memory_ids
+
+        except Exception as e:
+            error_msg = f"Intelligent memory analysis failed: {str(e)}"
+            self.error_callback("Intelligent Memory Analysis", error_msg)
+            return []
 
     async def safe_recall(
         self,
@@ -79,6 +109,31 @@ class SafeMemoryManager:
         except Exception as e:
             error_msg = f"Memory recall failed: {str(e)}"
             self.error_callback("Recall Memory", error_msg)
+            return []
+
+    async def safe_get_all_memories(
+        self,
+        memory_types: list[MemoryType] | None = None,
+        limit: int = 1000,
+    ) -> list[Memory]:
+        """Safely get all memories with error handling."""
+        try:
+            all_memories = []
+            types_to_search = memory_types or list(MemoryType)
+
+            for memory_type in types_to_search:
+                # Use a common word with very low threshold to get all memories
+                memories = await self.memory_manager.recall(
+                    query="a", memory_types=[memory_type], limit=limit, threshold=0.0
+                )
+                all_memories.extend(memories)
+
+            logger.info(f"Successfully retrieved {len(all_memories)} memories")
+            return all_memories
+
+        except Exception as e:
+            error_msg = f"Failed to get all memories: {str(e)}"
+            self.error_callback("Get All Memories", error_msg)
             return []
 
     async def safe_forget(self, memory_id: str) -> bool:

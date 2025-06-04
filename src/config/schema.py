@@ -297,6 +297,9 @@ class ExperimentalConfig(BaseModel):
 class NeuromancerConfig(BaseModel):
     """Complete Neuromancer configuration."""
 
+    # Allow extra fields for custom settings like system_prompt
+    model_config = {"extra": "allow"}
+
     general: GeneralConfig = Field(default_factory=GeneralConfig)
     providers: ProviderConfig = Field(default_factory=ProviderConfig)
     memory: MemoryConfig = Field(default_factory=MemoryConfig)
@@ -309,6 +312,12 @@ class NeuromancerConfig(BaseModel):
     # Metadata
     version: int = Field(default=1, description="Configuration version")
     profile: str = Field(default="default", description="Configuration profile name")
+
+    # Custom system prompt fields
+    system_prompt: str = Field(default="", description="Custom system prompt")
+    system_prompt_memory_integration: bool = Field(
+        default=True, description="Include memory in system prompt"
+    )
 
     @model_validator(mode="before")
     @classmethod

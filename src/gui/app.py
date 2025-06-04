@@ -34,6 +34,10 @@ class NeuromancerApp(MDApp):
         self.title = config.general.app_name + " - AI Assistant"
         self.main_screens_loaded = False
 
+        # Store pre-initialized managers for sharing
+        self._chat_manager = None
+        self._safe_memory = None
+
         # Apply professional theme
         NeuromancerTheme.apply_theme(self)
 
@@ -69,32 +73,135 @@ class NeuromancerApp(MDApp):
             raise
 
     def start_async_loading(self):
-        """Start the async loading process."""
+        """Start the async loading process with real initialization."""
         # Create a simple event loop for the loading sequence
         import threading
 
         def run_loading():
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
-            loop.run_until_complete(self.splash_screen.start_loading_sequence())
+            loop.run_until_complete(self.real_loading_sequence())
             loop.close()
 
         thread = threading.Thread(target=run_loading)
         thread.daemon = True
         thread.start()
 
+    async def real_loading_sequence(self):
+        """Perform real initialization with progress updates."""
+        try:
+            # Step 1: Configuration and basic setup
+            self.splash_screen.set_progress(
+                10, "Loading configuration...", "Reading settings and preferences"
+            )
+            await asyncio.sleep(0.1)  # Let UI update
+
+            # Preload some heavy imports to reduce later delays
+            self.splash_screen.set_progress(
+                20, "Loading core modules...", "Importing essential components"
+            )
+            await asyncio.sleep(0.1)
+
+            # Step 2: Initialize memory system
+            self.splash_screen.set_progress(
+                35, "Initializing memory system...", "Loading embedding model (may take a moment)"
+            )
+            try:
+                # Pre-initialize memory components to reduce chat screen load time
+                from src.memory.safe_operations import create_safe_memory_manager
+                from src.utils.embeddings import EmbeddingGenerator
+
+                # Initialize embedding generator (this is often slow)
+                embedding_gen = EmbeddingGenerator()
+                # Trigger lazy loading of the model
+                _ = embedding_gen.model
+
+                # Pre-initialize and store memory manager
+                self._safe_memory = create_safe_memory_manager(
+                    lambda op, err: logger.warning(f"Memory error: {op} - {err}")
+                )
+
+                await asyncio.sleep(0.1)
+            except Exception as e:
+                logger.warning(f"Memory system initialization warning: {e}")
+
+            # Step 3: Initialize chat manager and providers
+            self.splash_screen.set_progress(
+                50, "Setting up LLM providers...", "Configuring AI model connections"
+            )
+            try:
+                from src.core.chat_manager import ChatManager
+
+                # Pre-initialize and store for reuse
+                self._chat_manager = ChatManager()
+                await asyncio.sleep(0.1)
+            except Exception as e:
+                logger.warning(f"Chat manager initialization warning: {e}")
+
+            # Step 4: Database and session setup
+            self.splash_screen.set_progress(
+                65, "Preparing database...", "Setting up conversation storage"
+            )
+            try:
+
+                # Session manager is already initialized in chat manager
+                await asyncio.sleep(0.1)
+            except Exception as e:
+                logger.warning(f"Session manager initialization warning: {e}")
+
+            # Step 5: UI preparation
+            self.splash_screen.set_progress(
+                80, "Building user interface...", "Creating application screens"
+            )
+            await asyncio.sleep(0.1)
+
+            # Step 6: Final preparations
+            self.splash_screen.set_progress(95, "Finalizing setup...", "Almost ready!")
+            await asyncio.sleep(0.2)
+
+            # Complete
+            self.splash_screen.set_progress(100, "Ready!", "Launching Neuromancer...")
+            await asyncio.sleep(0.5)
+
+            # Schedule completion on main thread
+            Clock.schedule_once(lambda dt: self.on_splash_complete(), 0)
+
+        except Exception as e:
+            logger.error(f"Loading sequence failed: {e}")
+            Clock.schedule_once(
+                lambda dt: self.splash_screen.set_progress(100, f"Error: {str(e)}"), 0
+            )
+            Clock.schedule_once(
+                lambda dt: self.on_splash_complete(), 2.0
+            )  # Still proceed after error
+
     def on_splash_complete(self):
         """Called when splash screen loading is complete."""
         Clock.schedule_once(lambda dt: self.load_main_screens(), 0.1)
 
     def load_main_screens(self):
-        """Load the main application screens."""
+        """Load the main application screens with progress updates."""
         if self.main_screens_loaded:
             return
 
         try:
-            # Add main screens (use only enhanced chat screen)
-            self.screen_manager.add_widget(EnhancedChatScreen(name="enhanced_chat"))
+            logger.info("Loading main application screens...")
+
+            # Load screens one by one for better startup experience
+            self.splash_screen.set_progress(
+                85, "Loading chat interface...", "Initializing main chat screen"
+            )
+
+            # Add main chat screen first (most important) - pass app instance for pre-initialized managers
+            self.screen_manager.add_widget(
+                EnhancedChatScreen(app_instance=self, name="enhanced_chat")
+            )
+
+            self.splash_screen.set_progress(
+                90, "Loading auxiliary screens...", "Setting up settings and memory screens"
+            )
+
+            # Add other screens
             self.screen_manager.add_widget(SettingsScreen(name="settings"))
             self.screen_manager.add_widget(MemoryScreen(name="memory"))
             self.screen_manager.add_widget(SimpleMemoryScreen(name="advanced_memory"))
@@ -103,6 +210,10 @@ class NeuromancerApp(MDApp):
             # self.screen_manager.add_widget(AdvancedSettingsScreen(name='advanced_settings'))
 
             self.main_screens_loaded = True
+
+            self.splash_screen.set_progress(
+                100, "Starting application...", "Welcome to Neuromancer!"
+            )
 
             # Transition to enhanced chat screen
             self.screen_manager.current = "enhanced_chat"
