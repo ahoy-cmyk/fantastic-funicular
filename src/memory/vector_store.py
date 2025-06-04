@@ -1,6 +1,7 @@
 """Vector-based memory storage using ChromaDB."""
 
 import json
+import logging
 import time
 import uuid
 from datetime import datetime
@@ -230,9 +231,10 @@ class VectorMemoryStore(MemoryStore):
                         and len(results["distances"][0]) > 0
                     ):
 
-                        logger.debug(
-                            f"Processing {len(results['distances'][0])} results for {mem_type.value}"
-                        )
+                        if logger.isEnabledFor(logging.DEBUG):
+                            logger.debug(
+                                f"Processing {len(results['distances'][0])} results for {mem_type.value}"
+                            )
 
                         for i, distance in enumerate(results["distances"][0]):
                             try:
@@ -248,14 +250,8 @@ class VectorMemoryStore(MemoryStore):
                                     distance_val = float(distance)
 
                                 similarity = 1 - distance_val
-                                logger.debug(
-                                    f"  Result {i}: similarity={similarity:.3f}, threshold={threshold}"
-                                )
 
                                 if similarity >= threshold:
-                                    logger.debug(
-                                        f"  Including result {i} (similarity {similarity:.3f} >= {threshold})"
-                                    )
                                     try:
                                         # Handle embeddings properly
                                         embedding = None
@@ -279,16 +275,14 @@ class VectorMemoryStore(MemoryStore):
                                     except Exception as mem_error:
                                         logger.error(f"Error building memory: {mem_error}")
                                         continue
-                                else:
-                                    logger.debug(
-                                        f"  Skipping result {i} (similarity {similarity:.3f} < {threshold})"
-                                    )
+                                # Skip results below threshold
                             except (ValueError, TypeError, IndexError) as dist_error:
-                                logger.debug(
-                                    f"Error processing distance value {distance}: {dist_error}"
-                                )
+                                if logger.isEnabledFor(logging.DEBUG):
+                                    logger.debug(
+                                        f"Error processing distance value {distance}: {dist_error}"
+                                    )
                                 continue
-                    else:
+                    elif logger.isEnabledFor(logging.DEBUG):
                         logger.debug(f"No valid results from {mem_type.value} collection")
 
                 except Exception as collection_error:
@@ -311,11 +305,15 @@ class VectorMemoryStore(MemoryStore):
                 if hasattr(memory, "_search_similarity"):
                     delattr(memory, "_search_similarity")
 
-            # Cache the results
-            self._search_cache[cache_key] = {"results": memories, "timestamp": time.time()}
+            # Cache the results (only if we have meaningful results to avoid cache pollution)
+            if memories:
+                self._search_cache[cache_key] = {"results": memories, "timestamp": time.time()}
 
-            search_time = time.time() - start_time
-            logger.debug(f"Search completed in {search_time:.3f}s, found {len(memories)} memories")
+            if logger.isEnabledFor(logging.DEBUG):
+                search_time = time.time() - start_time
+                logger.debug(
+                    f"Search completed in {search_time:.3f}s, found {len(memories)} memories"
+                )
 
             return memories
 
@@ -427,6 +425,102 @@ class VectorMemoryStore(MemoryStore):
         except Exception as e:
             logger.error(f"Failed to clear memories: {e}")
             return 0
+
+    async def get_all_memories(
+        self, memory_type: MemoryType | None = None, limit: int = 1000, offset: int = 0
+    ) -> list[Memory]:
+        """Get all memories efficiently without vector search.
+
+        Args:
+            memory_type: Specific memory type or None for all types
+            limit: Maximum number of memories to return
+            offset: Number of memories to skip (for pagination)
+
+        Returns:
+            List of memories
+        """
+        try:
+            all_memories = []
+
+            # Determine which collections to query
+            if memory_type:
+                collections_to_query = [(memory_type, self.collections[memory_type])]
+            else:
+                collections_to_query = list(self.collections.items())
+
+            for mem_type, collection in collections_to_query:
+                # Get all IDs from the collection (much faster than vector search)
+                try:
+                    # Get collection size first
+                    collection_count = collection.count()
+                    if collection_count == 0:
+                        continue
+
+                    # Get all documents without doing vector search
+                    results = collection.get(
+                        include=["documents", "metadatas", "embeddings"],
+                        limit=min(collection_count, limit * 2),  # Get more than needed for sorting
+                    )
+
+                    if results and results.get("ids"):
+                        for i, doc_id in enumerate(results["ids"]):
+                            if len(all_memories) >= limit + offset:
+                                break
+
+                            try:
+                                # Handle embeddings properly to avoid array evaluation errors
+                                embedding = None
+                                embeddings_data = results.get("embeddings")
+                                if embeddings_data is not None:
+                                    try:
+                                        # Check if we have embeddings and the index is valid
+                                        if (
+                                            hasattr(embeddings_data, "__len__")
+                                            and len(embeddings_data) > i
+                                        ):
+                                            embedding = embeddings_data[i]
+                                        elif (
+                                            isinstance(embeddings_data, list)
+                                            and len(embeddings_data) > i
+                                        ):
+                                            embedding = embeddings_data[i]
+                                    except (IndexError, TypeError):
+                                        # Skip invalid embeddings
+                                        embedding = None
+
+                                memory = self._build_memory(
+                                    id=doc_id,
+                                    document=results["documents"][i],
+                                    embedding=embedding,
+                                    metadata=results["metadatas"][i],
+                                    memory_type=mem_type,
+                                )
+                                all_memories.append(memory)
+
+                            except Exception as mem_error:
+                                logger.warning(f"Error building memory {doc_id}: {mem_error}")
+                                continue
+
+                except Exception as collection_error:
+                    logger.warning(f"Error querying collection {mem_type}: {collection_error}")
+                    continue
+
+            # Sort by creation time (newest first) and apply pagination
+            all_memories.sort(key=lambda m: m.created_at, reverse=True)
+
+            # Apply offset and limit
+            start_idx = offset
+            end_idx = offset + limit
+            paginated_memories = all_memories[start_idx:end_idx]
+
+            logger.info(
+                f"Retrieved {len(paginated_memories)} memories efficiently (total available: {len(all_memories)})"
+            )
+            return paginated_memories
+
+        except Exception as e:
+            logger.error(f"Failed to get all memories: {e}")
+            return []
 
     def _build_memory(
         self,
