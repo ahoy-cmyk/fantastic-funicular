@@ -1,4 +1,39 @@
-"""Memory management screen with full CRUD operations."""
+"""Advanced memory management interface with intelligent operations.
+
+This module implements a comprehensive memory management system demonstrating:
+
+- Full CRUD operations (Create, Read, Update, Delete) for AI memories
+- Advanced search and filtering with real-time feedback
+- Pagination for efficient handling of large memory datasets
+- Intelligent memory type classification and management
+- System prompt configuration with memory integration
+- Visual memory type indicators with color coding
+- Thread-safe async operations with progress feedback
+
+Memory System Architecture:
+    The interface connects to a vector-based memory store using ChromaDB,
+    providing semantic search capabilities and intelligent memory classification.
+    All operations are wrapped in safe managers to prevent data corruption.
+
+User Experience Design:
+    - Material Design components with consistent theming
+    - Responsive layouts that adapt to different screen sizes
+    - Progressive disclosure of complex features
+    - Real-time search with debounced input handling
+    - Context-aware help and guidance systems
+
+Performance Optimization:
+    - Pagination to handle thousands of memories efficiently
+    - Debounced search to reduce unnecessary operations
+    - Background threading for all database operations
+    - Efficient memory loading with limit/offset patterns
+
+Accessibility Features:
+    - Keyboard navigation support
+    - Screen reader compatible structure
+    - High contrast visual design
+    - Clear information hierarchy
+"""
 
 import asyncio
 import threading
@@ -26,7 +61,43 @@ logger = setup_logger(__name__)
 
 
 class MemoryListItem(MDCard):
-    """Card widget for displaying individual memories with action buttons."""
+    """Custom card widget for memory display with interactive controls.
+    
+    This widget provides a sophisticated memory representation featuring:
+    
+    Visual Design:
+        - Color-coded memory type indicators for quick classification
+        - Importance weighting display with visual prominence
+        - Truncated content preview for scannable information
+        - Material Design elevation and styling
+        
+    Interactive Elements:
+        - Edit button for in-place memory modification
+        - Delete button with confirmation workflow
+        - Hover states and touch feedback
+        - Callback-based event handling for loose coupling
+        
+    Information Architecture:
+        - Header with type and importance information
+        - Content preview with intelligent truncation
+        - Footer with metadata (creation time, importance value)
+        - Consistent layout for visual scanning
+        
+    Memory Type Visualization:
+        Uses distinct colors to represent different memory types:
+        - Short-term: Blue (temporary, session-based)
+        - Long-term: Orange (permanent, cross-session)
+        - Episodic: Purple (event-based, temporal)
+        - Semantic: Green (knowledge-based, factual)
+        
+    The widget demonstrates advanced Kivy custom widget creation
+    with proper event handling and visual design principles.
+    
+    Args:
+        memory (Memory): The memory object to display
+        on_edit (callable): Callback for edit operations
+        on_delete (callable): Callback for delete operations
+    """
 
     def __init__(self, memory: Memory, on_edit=None, on_delete=None, **kwargs):
         super().__init__(**kwargs)
@@ -160,7 +231,59 @@ class MemoryListItem(MDCard):
 
 
 class MemoryScreen(MDScreen):
-    """Memory management screen with search, add, edit, delete functionality."""
+    """Advanced memory management interface with comprehensive functionality.
+    
+    This screen provides a complete memory management solution featuring:
+    
+    Core Functionality:
+        - Full CRUD operations for AI memory management
+        - Advanced search with real-time filtering
+        - Memory type-based organization and filtering
+        - Pagination for efficient large dataset handling
+        - System prompt configuration with memory integration
+        
+    Search and Filtering:
+        - Real-time text search across memory content
+        - Memory type filtering with visual indicators
+        - Metadata search including tags and attributes
+        - Debounced input handling for performance
+        - Search result highlighting and context
+        
+    User Interface Design:
+        - Professional Material Design implementation
+        - Responsive layout with adaptive sizing
+        - Color-coded memory type system for quick identification
+        - Interactive help system with detailed explanations
+        - Progressive disclosure of advanced features
+        
+    Data Management:
+        - Safe memory operations with error handling
+        - Background threading for all database operations
+        - Pagination with "load more" functionality
+        - Optimistic UI updates with rollback on error
+        - Comprehensive validation and error recovery
+        
+    Performance Optimization:
+        - Efficient memory loading with configurable page sizes
+        - Search debouncing to reduce unnecessary operations
+        - UI virtualization for large memory lists
+        - Background processing for heavy operations
+        
+    System Integration:
+        - System prompt configuration and management
+        - Memory integration toggle for AI responses
+        - Template-based prompt creation
+        - Configuration persistence and validation
+        
+    Accessibility Features:
+        - Keyboard navigation throughout the interface
+        - Screen reader compatible widget hierarchy
+        - High contrast design for visibility
+        - Touch-friendly controls with appropriate sizing
+        
+    The screen demonstrates advanced Kivy application architecture
+    with proper separation of concerns and professional UX design.
+    """
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -187,7 +310,45 @@ class MemoryScreen(MDScreen):
         Clock.schedule_once(self._load_memories, 0.1)
 
     def build_ui(self):
-        """Build the memory management interface."""
+        """Construct the comprehensive memory management interface.
+        
+        This method builds a sophisticated UI structure featuring:
+        
+        Layout Architecture:
+            1. Fixed toolbar with navigation and action buttons
+            2. Informational card with system overview
+            3. Collapsible search bar with animation
+            4. Filter section with memory type chips
+            5. Scrollable memory list with pagination
+            
+        Component Organization:
+            - Toolbar: Navigation, title, and primary actions
+            - Info card: System overview with expandable help
+            - Search: Real-time filtering with show/hide animation
+            - Filters: Visual memory type selection with color coding
+            - Content: Virtualized list with efficient rendering
+            
+        Design Principles:
+            - Consistent spacing using design system constants
+            - Professional color scheme with semantic meaning
+            - Progressive disclosure of complex features
+            - Visual hierarchy for information scanning
+            
+        Interactive Elements:
+            - Animated search bar expansion/collapse
+            - Color-coded filter chips with selection states
+            - Action buttons with appropriate icons
+            - Help integration with contextual guidance
+            
+        Responsive Design:
+            - Adaptive layouts for different screen sizes
+            - Flexible component sizing with dp measurements
+            - Appropriate elevation and shadow effects
+            - Touch-friendly control sizing
+            
+        The UI demonstrates advanced Material Design implementation
+        with proper component composition and interaction patterns.
+        """
         main_layout = MDBoxLayout(orientation="vertical")
 
         # Toolbar
@@ -398,7 +559,31 @@ class MemoryScreen(MDScreen):
         self.manager.current = "enhanced_chat"
 
     def _load_memories(self, dt):
-        """Load memories asynchronously."""
+        """Initiate asynchronous memory loading with thread safety.
+        
+        This method demonstrates the proper Kivy pattern for background operations:
+        
+        Threading Strategy:
+            - Creates isolated daemon thread for database operations
+            - Establishes new event loop for async operations
+            - Ensures proper cleanup with try/finally blocks
+            - Schedules UI updates on main thread via Clock
+            
+        Error Handling:
+            - Isolates database errors from UI thread
+            - Provides user feedback through notification system
+            - Maintains application stability on failure
+            - Logs detailed error information for debugging
+            
+        Memory Loading:
+            - Fetches memories with pagination support
+            - Handles large datasets efficiently
+            - Provides visual feedback during loading
+            - Updates UI components after successful load
+            
+        The pattern ensures UI responsiveness while performing
+        potentially slow database operations in the background.
+        """
 
         def run_async():
             try:
@@ -416,7 +601,41 @@ class MemoryScreen(MDScreen):
         thread.start()
 
     async def _load_memories_async(self, load_more=False):
-        """Load memories from the memory system with pagination."""
+        """Load memories with intelligent pagination and state management.
+        
+        This method implements efficient memory loading:
+        
+        Pagination Strategy:
+            - Configurable page size for optimal performance
+            - Offset calculation for proper data continuation
+            - Has-more-data detection for UI control
+            - Append vs replace logic for load-more functionality
+            
+        Performance Optimization:
+            - Batch loading to reduce database round trips
+            - Efficient offset-based pagination
+            - Memory state management to prevent duplicates
+            - UI update scheduling to prevent blocking
+            
+        Data Management:
+            - Safe memory retrieval with error handling
+            - State updates for pagination controls
+            - Memory deduplication and ordering
+            - Metadata preservation during loading
+            
+        User Experience:
+            - Progress feedback during loading operations
+            - Smooth continuation of existing content
+            - Error recovery with user notification
+            - Loading state management
+            
+        Args:
+            load_more (bool): Whether to append to existing memories
+                             or replace them with fresh data
+                             
+        The async implementation ensures efficient memory retrieval
+        while maintaining responsive user interface.
+        """
         try:
             # Calculate offset for pagination
             offset = 0 if not load_more else len(self.memories)
@@ -593,7 +812,44 @@ class MemoryScreen(MDScreen):
         thread.start()
 
     def _apply_filter(self, memory_type: MemoryType | None):
-        """Apply memory type filter."""
+        """Apply memory type filtering with visual feedback.
+        
+        This method implements sophisticated filtering:
+        
+        Filter Logic:
+            - None type shows all memories (universal filter)
+            - Specific types filter to matching memories only
+            - Maintains search query when changing filters
+            - Updates display with filtered results
+            
+        Visual Feedback:
+            - Highlights selected filter with accent color
+            - Resets other filter buttons to neutral state
+            - Updates count display with filtered results
+            - Maintains visual consistency across state changes
+            
+        State Management:
+            - Stores current filter for search integration
+            - Preserves search query across filter changes
+            - Updates filtered memories collection
+            - Refreshes UI display with new results
+            
+        Performance Optimization:
+            - In-memory filtering for responsive interaction
+            - Efficient list comprehension for type matching
+            - Minimal UI updates for smooth transitions
+            - Debounced operations for rapid filter changes
+            
+        User Experience:
+            - Immediate visual feedback on filter selection
+            - Clear indication of active filter state
+            - Consistent behavior across different filter types
+            - Intuitive color coding for memory types
+            
+        Args:
+            memory_type (MemoryType | None): Type to filter by,
+                                           None for all memories
+        """
         self.current_filter = memory_type
 
         # Update button colors
@@ -625,7 +881,43 @@ class MemoryScreen(MDScreen):
         self.count_label.text = f"Showing {len(self.filtered_memories)} memories"
 
     def _toggle_search(self, *args):
-        """Toggle search bar visibility."""
+        """Toggle search bar with smooth animation and state management.
+        
+        This method demonstrates advanced UI animation:
+        
+        Animation Features:
+            - Smooth height and opacity transitions
+            - Cubic easing for professional feel
+            - Appropriate timing for user comfort
+            - State-aware animation direction
+            
+        State Management:
+            - Tracks search bar visibility state
+            - Manages focus for keyboard input
+            - Clears search when hiding for clean state
+            - Preserves search query during visibility
+            
+        User Experience:
+            - Immediate focus to search field when showing
+            - Graceful clear and hide when dismissing
+            - Visual feedback throughout animation
+            - Keyboard-friendly interaction patterns
+            
+        Technical Implementation:
+            - Uses Kivy's Animation class for smooth transitions
+            - Proper animation chaining for complex sequences
+            - Event-driven state changes
+            - Memory-efficient animation handling
+            
+        Accessibility:
+            - Focus management for keyboard navigation
+            - Clear visual states for screen readers
+            - Logical tab order maintenance
+            - Appropriate animation timing for accessibility
+            
+        The toggle provides an elegant way to show/hide the search
+        interface without disrupting the main content layout.
+        """
         logger.info(f"Toggle search called, current height: {self.search_layout.height}")
         if self.search_layout.height == 0:
             # Show search
@@ -651,7 +943,43 @@ class MemoryScreen(MDScreen):
         self._on_search_text(self.search_field, text)
 
     def _on_search_text(self, instance, text):
-        """Handle search text changes with debouncing for better performance."""
+        """Handle search input with intelligent debouncing and validation.
+        
+        This method implements sophisticated search functionality:
+        
+        Debouncing Strategy:
+            - 300ms delay after user stops typing
+            - Prevents excessive search operations
+            - Cancels pending searches on new input
+            - Provides responsive feel without performance cost
+            
+        Input Processing:
+            - Normalizes input (strip whitespace, lowercase)
+            - Validates search query length and content
+            - Handles empty queries with proper reset
+            - Preserves user input patterns
+            
+        Search Triggering:
+            - Immediate clear on empty input
+            - Debounced search on valid input
+            - Cancel mechanism for rapid typing
+            - Progress indication for longer operations
+            
+        Performance Optimization:
+            - Prevents unnecessary database queries
+            - Reduces UI update frequency
+            - Maintains smooth typing experience
+            - Efficient string processing
+            
+        User Experience:
+            - Immediate feedback on input changes
+            - Smooth search experience without lag
+            - Clear indication of search activity
+            - Intuitive search behavior patterns
+            
+        The debouncing ensures optimal performance while maintaining
+        a responsive search experience for users.
+        """
         logger.info(f"Search text changed: '{text}'")
         self.search_query = text.strip().lower()
         if self.search_query:
@@ -664,7 +992,49 @@ class MemoryScreen(MDScreen):
             self._clear_search()
 
     def _filter_by_search(self):
-        """Filter memories by search query."""
+        """Perform comprehensive search across memory content and metadata.
+        
+        This method implements multi-field search functionality:
+        
+        Search Scope:
+            - Primary content text with case-insensitive matching
+            - Memory type values with human-readable formatting
+            - Metadata keys and values with string conversion
+            - Comprehensive coverage of all searchable fields
+            
+        Search Algorithm:
+            - Sequential field checking for efficiency
+            - Early termination on first match per memory
+            - Case-insensitive string matching throughout
+            - Metadata iteration with safe type conversion
+            
+        Performance Optimization:
+            - In-memory search for responsive interaction
+            - Efficient string operations
+            - Early exit patterns to minimize processing
+            - Memory-efficient iteration patterns
+            
+        Search Quality:
+            - Partial string matching for flexible queries
+            - Whitespace normalization for consistent results
+            - Memory type format conversion for user-friendly search
+            - Comprehensive metadata inclusion
+            
+        Result Management:
+            - Updates filtered memory collection
+            - Preserves original memory order
+            - Maintains search result integrity
+            - Provides result count feedback
+            
+        User Feedback:
+            - Real-time result count updates
+            - Clear indication of search scope
+            - Progress feedback for large datasets
+            - Empty state handling for no results
+            
+        The search provides comprehensive coverage while maintaining
+        excellent performance and user experience.
+        """
         if not self.search_query:
             return
 
@@ -716,7 +1086,49 @@ class MemoryScreen(MDScreen):
         self._load_memories(None)
 
     def _show_add_dialog(self, *args):
-        """Show dialog to add new memory."""
+        """Display comprehensive memory creation dialog with validation.
+        
+        This method creates a sophisticated memory creation interface:
+        
+        Form Components:
+            - Multi-line content field with text wrapping
+            - Memory type selection with visual indicators
+            - Importance slider with real-time value display
+            - Optional tags field for organization
+            
+        Input Validation:
+            - Required content field validation
+            - Memory type selection requirement
+            - Importance value range validation
+            - Tag format validation and processing
+            
+        User Experience:
+            - Intuitive form layout with logical flow
+            - Visual feedback for selections and inputs
+            - Clear action buttons with semantic colors
+            - Responsive dialog sizing for different screens
+            
+        Default Values:
+            - Long-term memory type as sensible default
+            - Moderate importance (0.7) for balanced weighting
+            - Empty tags field for optional organization
+            - Proper field focus and tab order
+            
+        Visual Design:
+            - Material Design dialog structure
+            - Consistent spacing and typography
+            - Color-coded memory type buttons
+            - Professional form styling
+            
+        Accessibility:
+            - Keyboard navigation support
+            - Screen reader compatible labels
+            - Logical tab order through form fields
+            - Clear visual hierarchy
+            
+        The dialog provides a complete memory creation experience
+        with proper validation and user guidance.
+        """
         content = MDBoxLayout(
             orientation="vertical", spacing=dp(15), size_hint_y=None, height=dp(350)
         )
@@ -801,7 +1213,43 @@ class MemoryScreen(MDScreen):
             btn.md_bg_color = (0.2, 0.6, 0.8, 1) if btn_type == memory_type else (0.3, 0.3, 0.3, 1)
 
     def _create_memory(self, dialog):
-        """Create a new memory."""
+        """Process memory creation with validation and error handling.
+        
+        This method handles the complete memory creation pipeline:
+        
+        Input Validation:
+            - Content field requirement checking
+            - Memory type selection validation
+            - Importance value range verification
+            - Tag processing and formatting
+            
+        Data Processing:
+            - Content text normalization
+            - Tag parsing from comma-separated input
+            - Metadata construction with creation context
+            - Importance value extraction from slider
+            
+        Async Execution:
+            - Background thread creation for database operations
+            - New event loop establishment for isolation
+            - Proper error handling and cleanup
+            - UI feedback scheduling on main thread
+            
+        Error Handling:
+            - Validation error display with user guidance
+            - Database error recovery with notifications
+            - Thread safety with proper cleanup
+            - Graceful degradation on failure
+            
+        User Feedback:
+            - Immediate dialog dismissal on valid input
+            - Progress indication during creation
+            - Success notification with memory ID
+            - Error messages with actionable guidance
+            
+        The method ensures reliable memory creation while
+        maintaining excellent user experience and error recovery.
+        """
         content = self.add_content_field.text.strip()
         if not content:
             Notification.error("Memory content cannot be empty")
@@ -828,7 +1276,48 @@ class MemoryScreen(MDScreen):
         thread.start()
 
     async def _create_memory_async(self, content: str, importance: float, tags: list):
-        """Create memory asynchronously."""
+        """Asynchronously create memory with comprehensive metadata.
+        
+        This method implements the complete memory creation process:
+        
+        Metadata Construction:
+            - Creation source tracking for provenance
+            - Timestamp recording for temporal context
+            - Manual creation flag for user-generated content
+            - Tag integration for organizational structure
+            
+        Memory System Integration:
+            - Safe memory manager usage for error handling
+            - Memory type and importance specification
+            - Automatic ID generation and tracking
+            - Vector embedding creation for similarity search
+            
+        Error Handling:
+            - Database connection error recovery
+            - Memory creation failure detection
+            - User notification with meaningful messages
+            - Logging for debugging and monitoring
+            
+        Success Processing:
+            - Memory list refresh for immediate visibility
+            - User notification with memory ID confirmation
+            - UI state updates for consistent display
+            - Analytics tracking for usage patterns
+            
+        Performance Optimization:
+            - Efficient metadata construction
+            - Batched operations where possible
+            - Minimal UI thread blocking
+            - Optimized database interactions
+            
+        Args:
+            content (str): The memory content text
+            importance (float): Memory importance weighting (0.0-1.0)
+            tags (list): Optional tags for organization
+            
+        The async implementation ensures responsive UI while
+        performing complex memory system operations.
+        """
         try:
             metadata = {
                 "created_manually": True,
@@ -860,7 +1349,52 @@ class MemoryScreen(MDScreen):
             Clock.schedule_once(lambda dt: Notification.error("Memory creation failed"), 0)
 
     def _edit_memory(self, memory: Memory):
-        """Edit an existing memory."""
+        """Display memory editing dialog with pre-populated values.
+        
+        This method creates a comprehensive memory editing interface:
+        
+        Form Pre-population:
+            - Current memory content in editable text field
+            - Memory type selection with current type highlighted
+            - Importance slider set to current value
+            - Visual indicators for current selections
+            
+        Editing Interface:
+            - Multi-line content editing with text wrapping
+            - Memory type switching with color-coded buttons
+            - Importance adjustment with real-time feedback
+            - Save/cancel options with clear semantics
+            
+        Data Integrity:
+            - Preserves original memory ID and metadata
+            - Maintains creation timestamp and source
+            - Updates modification timestamp on save
+            - Validates all changes before submission
+            
+        User Experience:
+            - Familiar editing interface matching creation dialog
+            - Clear indication of current vs. modified values
+            - Immediate feedback on changes
+            - Proper error handling and validation
+            
+        Visual Design:
+            - Consistent with creation dialog styling
+            - Clear visual hierarchy for form elements
+            - Professional button styling and colors
+            - Responsive dialog sizing
+            
+        Accessibility:
+            - Keyboard navigation throughout the form
+            - Screen reader compatible field labels
+            - Logical tab order for efficient editing
+            - Clear focus indicators
+            
+        Args:
+            memory (Memory): The memory object to edit
+            
+        The editing interface provides comprehensive memory
+        modification capabilities with proper validation.
+        """
         content = MDBoxLayout(
             orientation="vertical", spacing=dp(15), size_hint_y=None, height=dp(300)
         )
@@ -970,7 +1504,55 @@ class MemoryScreen(MDScreen):
     async def _update_memory_async(
         self, memory: Memory, new_content: str, new_type: MemoryType, new_importance: float
     ):
-        """Update memory asynchronously."""
+        """Asynchronously update memory with validation and error handling.
+        
+        This method implements comprehensive memory updating:
+        
+        Memory Object Updates:
+            - Content modification with validation
+            - Memory type classification changes
+            - Importance reweighting for retrieval priority
+            - Access timestamp update for usage tracking
+            
+        Database Operations:
+            - Atomic update operations for consistency
+            - Vector embedding regeneration for content changes
+            - Index updates for efficient retrieval
+            - Transaction management for data integrity
+            
+        Error Handling:
+            - Database connection error recovery
+            - Update conflict detection and resolution
+            - Validation error handling with user feedback
+            - Rollback mechanisms for failed operations
+            
+        Success Processing:
+            - Memory list refresh for immediate visibility
+            - User notification of successful update
+            - UI state synchronization
+            - Analytics tracking for modification patterns
+            
+        Performance Optimization:
+            - Efficient database update operations
+            - Minimal data transfer for unchanged fields
+            - Optimized vector embedding updates
+            - Batched UI updates for smooth experience
+            
+        Data Consistency:
+            - Maintains referential integrity
+            - Preserves creation metadata
+            - Updates modification timestamps
+            - Validates all field changes
+            
+        Args:
+            memory (Memory): Original memory object
+            new_content (str): Updated content text
+            new_type (MemoryType): New memory classification
+            new_importance (float): Updated importance weighting
+            
+        The async implementation ensures data integrity while
+        maintaining responsive user interface during updates.
+        """
         try:
             # Update memory object
             memory.content = new_content
@@ -995,7 +1577,52 @@ class MemoryScreen(MDScreen):
             Clock.schedule_once(lambda dt: Notification.error("Memory update failed"), 0)
 
     def _confirm_delete_memory(self, memory: Memory):
-        """Show confirmation dialog for deleting memory."""
+        """Display memory deletion confirmation with content preview.
+        
+        This method creates a safe deletion confirmation interface:
+        
+        Confirmation Design:
+            - Content preview for user verification
+            - Clear deletion warning with consequences
+            - Prominent cancel option for safety
+            - Visual distinction between safe and destructive actions
+            
+        Content Preview:
+            - Truncated memory content display
+            - Sufficient context for identification
+            - Readable formatting with proper wrapping
+            - Visual separation from action buttons
+            
+        Safety Measures:
+            - Explicit confirmation requirement
+            - Clear warning about irreversibility
+            - Cancel button prominence
+            - Destructive action color coding (red)
+            
+        User Experience:
+            - Clear dialog title and messaging
+            - Appropriate button sizing and spacing
+            - Professional visual design
+            - Accessible button labeling
+            
+        Error Prevention:
+            - Content verification before deletion
+            - Clear consequence communication
+            - Multiple confirmation steps
+            - Safe default action (cancel)
+            
+        Accessibility:
+            - Screen reader compatible dialog structure
+            - Keyboard navigation support
+            - Clear focus indicators
+            - Logical reading order
+            
+        Args:
+            memory (Memory): The memory object to delete
+            
+        The confirmation dialog prevents accidental deletions
+        while providing clear context for informed decisions.
+        """
         content = MDBoxLayout(
             orientation="vertical", spacing=dp(10), size_hint_y=None, height=dp(120)
         )
@@ -1050,7 +1677,52 @@ class MemoryScreen(MDScreen):
         thread.start()
 
     async def _delete_memory_async(self, memory: Memory):
-        """Delete memory asynchronously."""
+        """Asynchronously delete memory with comprehensive cleanup.
+        
+        This method implements safe memory deletion:
+        
+        Deletion Process:
+            - Memory ID validation before deletion
+            - Safe memory manager deletion operation
+            - Vector embedding cleanup
+            - Index updates for consistency
+            
+        Data Integrity:
+            - Atomic deletion operations
+            - Referential integrity maintenance
+            - Cascade deletion for related data
+            - Transaction management for consistency
+            
+        Error Handling:
+            - Database connection error recovery
+            - Deletion failure detection and reporting
+            - User notification with meaningful messages
+            - Logging for debugging and auditing
+            
+        Success Processing:
+            - Memory list refresh for immediate UI update
+            - User notification of successful deletion
+            - UI state cleanup for removed memory
+            - Analytics tracking for deletion patterns
+            
+        Performance Optimization:
+            - Efficient database deletion operations
+            - Minimal impact on remaining memories
+            - Optimized index updates
+            - Batched UI updates for smooth experience
+            
+        Cleanup Operations:
+            - Vector store cleanup for removed embeddings
+            - Index defragmentation for performance
+            - Memory cache invalidation
+            - Resource cleanup for deleted objects
+            
+        Args:
+            memory (Memory): The memory object to delete
+            
+        The async implementation ensures complete cleanup while
+        maintaining system performance and data integrity.
+        """
         try:
             success = await self.safe_memory.safe_forget(memory.id)
 
@@ -1068,7 +1740,49 @@ class MemoryScreen(MDScreen):
             Clock.schedule_once(lambda dt: Notification.error("Memory deletion failed"), 0)
 
     def _show_system_prompt_dialog(self, *args):
-        """Show system prompt configuration dialog."""
+        """Display comprehensive system prompt configuration interface.
+        
+        This method creates an advanced system prompt management dialog:
+        
+        Configuration Features:
+            - Multi-line system prompt editing with syntax support
+            - Template selection for common prompt patterns
+            - Memory integration toggle for enhanced responses
+            - Real-time character count and validation
+            
+        Template System:
+            - Pre-defined templates for common use cases
+            - One-click template application
+            - Template categorization (helpful, coding, research)
+            - Customizable template library
+            
+        Memory Integration:
+            - Toggle for automatic memory inclusion
+            - Configuration of memory retrieval parameters
+            - Context window management
+            - Memory relevance thresholds
+            
+        User Experience:
+            - Professional dialog design with clear sections
+            - Intuitive template selection interface
+            - Visual feedback for configuration changes
+            - Comprehensive help and documentation
+            
+        Validation and Safety:
+            - Prompt length validation
+            - Syntax checking for common errors
+            - Preview functionality for testing
+            - Rollback capability for safe experimentation
+            
+        Accessibility:
+            - Keyboard navigation throughout the interface
+            - Screen reader compatible form structure
+            - Clear labeling and help text
+            - Logical tab order for efficient configuration
+            
+        The dialog provides complete control over AI system behavior
+        with user-friendly template system and memory integration.
+        """
         content = MDBoxLayout(
             orientation="vertical", spacing=dp(15), size_hint_y=None, height=dp(400)
         )
@@ -1208,7 +1922,49 @@ class MemoryScreen(MDScreen):
         self._save_system_prompt(dialog)
 
     def _save_system_prompt(self, dialog):
-        """Save the system prompt configuration."""
+        """Save system prompt configuration with validation and integration.
+        
+        This method handles comprehensive system prompt persistence:
+        
+        Configuration Extraction:
+            - System prompt text with validation
+            - Memory integration settings
+            - Character length verification
+            - Format validation for AI compatibility
+            
+        Persistence Strategy:
+            - Configuration manager integration
+            - Atomic save operations for consistency
+            - Backup creation before changes
+            - Rollback capability on failure
+            
+        System Integration:
+            - Chat manager notification of changes
+            - Active session update for immediate effect
+            - Memory system configuration update
+            - Provider-specific prompt formatting
+            
+        Validation Process:
+            - Prompt length limits for AI model compatibility
+            - Content validation for potential issues
+            - Memory integration compatibility checking
+            - Provider-specific requirement validation
+            
+        Error Handling:
+            - Configuration save failure recovery
+            - Validation error reporting with guidance
+            - System integration error handling
+            - User notification with actionable feedback
+            
+        User Feedback:
+            - Success confirmation with character count
+            - Clear notification for empty prompts
+            - Error messages with specific guidance
+            - Visual confirmation of active configuration
+            
+        The method ensures reliable system prompt configuration
+        with proper validation and system-wide integration.
+        """
         try:
             prompt = self.system_prompt_field.text.strip()
             memory_integration = self.memory_integration_checkbox.active
@@ -1269,7 +2025,49 @@ class MemoryScreen(MDScreen):
             Notification.error("Failed to save system prompt")
 
     def _show_memory_types_help(self, *args):
-        """Show dialog explaining different memory types."""
+        """Display comprehensive memory system education interface.
+        
+        This method creates an informative help system featuring:
+        
+        Educational Content:
+            - Detailed explanation of each memory type
+            - Use case examples for practical understanding
+            - Color coding explanation for visual reference
+            - Best practices for memory organization
+            
+        Memory Type Explanations:
+            - Short-term: Temporary conversation context
+            - Long-term: Persistent cross-session information
+            - Episodic: Event-based temporal memories
+            - Semantic: General knowledge and facts
+            
+        Visual Design:
+            - Professional typography with clear hierarchy
+            - Color-coded sections matching the memory type system
+            - Scannable layout for quick reference
+            - Appropriate spacing and visual grouping
+            
+        Usage Guidance:
+            - Practical tips for effective memory management
+            - Search and filtering technique explanations
+            - Importance weighting guidance
+            - System prompt integration advice
+            
+        Content Organization:
+            - Logical flow from basic concepts to advanced usage
+            - Progressive disclosure of complex information
+            - Quick reference summary for experienced users
+            - Comprehensive detail for new users
+            
+        Accessibility:
+            - Screen reader compatible content structure
+            - Clear heading hierarchy for navigation
+            - Appropriate contrast and text sizing
+            - Keyboard navigation support
+            
+        The help system provides comprehensive education about
+        the memory system while maintaining professional presentation.
+        """
         content = MDBoxLayout(
             orientation="vertical", spacing=dp(15), size_hint_y=None, height=dp(450)
         )

@@ -1,67 +1,125 @@
-# Neuromancer - AI Assistant with Exceptional Memory
+# 🧠 Neuromancer - AI Chat with Memory
 
-A cross-platform LLM interface with advanced memory capabilities and Model Context Protocol (MCP) support.
+A cross-platform Python application that provides an LLM interface with persistent memory capabilities and Model Context Protocol (MCP) support.
 
-## Features
+## ✨ Features
 
-- **Multi-Provider Support**: Seamlessly switch between Ollama, OpenAI, and LM Studio
-- **Advanced Memory System**:
-  - Short-term and long-term memory with ChromaDB
-  - Semantic search and similarity matching
-  - Episodic memory for conversation tracking
-  - Memory consolidation and optimization
-- **MCP Integration**: Connect to MCP servers for extended tool capabilities
-- **Cross-Platform GUI**: Built with Kivy, runs on macOS, Linux, and Windows
-- **Modular Architecture**: Easy to extend with new providers and features
+🎯 **Persistent Memory System**: ChromaDB-powered vector storage with four memory types (Short-term, Long-term, Episodic, Semantic) that remembers conversations and user information across sessions.
 
-## Quick Start
+🔄 **Multiple LLM Providers**: Switch between Ollama, OpenAI, and LM Studio without losing conversation context.
 
-1. **Clone the repository**:
-   ```bash
-   git clone https://github.com/yourusername/fantastic-funicular.git
-   cd fantastic-funicular
-   ```
+🧠 **Retrieval-Augmented Generation (RAG)**: Enhanced responses using relevant memories with smart prioritization for personal information.
 
-2. **Run setup script**:
-   ```bash
-   ./scripts/setup.sh
-   ```
+🔌 **MCP Integration**: WebSocket-based client for connecting to Model Context Protocol servers.
 
-3. **Configure your environment**:
-   - Edit `.env` file with your API keys
-   - Ensure Ollama is running if using local models
+🎨 **Cross-Platform GUI**: Kivy-based interface with Material Design, supporting dark/light themes.
 
-4. **Launch the application**:
-   ```bash
-   ./scripts/run.sh
-   ```
+## 🚀 Quick Start
 
-## Architecture
+### Prerequisites
+- Python 3.10+
+- Ollama installed (for local models)
+
+### Setup
+```bash
+git clone <repo-url>
+cd fantastic-funicular
+./scripts/setup.sh
+```
+
+### Configuration
+Edit `.env` for your API keys:
+```bash
+OPENAI_API_KEY=your_key_here  # Optional
+LMSTUDIO_HOST=http://localhost:1234  # Optional
+```
+
+### Run
+```bash
+./scripts/run.sh
+```
+
+## 🏗️ Architecture
 
 ```
 src/
-├── core/          # Core functionality
-├── providers/     # LLM provider implementations
-├── memory/        # Memory system with vector storage
-├── mcp/           # Model Context Protocol integration
-├── gui/           # Kivy-based user interface
-└── utils/         # Utility functions
+├── core/                    # Core functionality
+│   ├── chat_manager.py      # Chat orchestration and RAG integration
+│   ├── model_manager.py     # Provider switching and model management
+│   ├── rag_system.py        # Retrieval-augmented generation
+│   └── config.py           # Configuration management
+├── providers/               # LLM provider implementations
+│   ├── ollama_provider.py   # Ollama local models
+│   ├── openai_provider.py   # OpenAI API integration
+│   └── lmstudio_provider.py # LM Studio support
+├── memory/                  # Memory system
+│   ├── manager.py          # Memory operations and consolidation
+│   ├── vector_store.py     # ChromaDB vector storage
+│   └── intelligent_analyzer.py # Content analysis for memory formation
+├── mcp/                     # Model Context Protocol
+│   ├── client.py           # WebSocket MCP client
+│   └── manager.py          # MCP server management
+├── gui/                     # Kivy user interface
+│   ├── app.py              # Main application
+│   └── screens/            # Chat, memory, and settings screens
+└── utils/                   # Utilities
+    ├── embeddings.py       # Text embedding generation
+    └── logger.py           # Logging configuration
 ```
 
-## Development
+## 💾 Memory System Details
 
-- Run tests: `pytest`
-- Format code: `black src tests`
-- Lint: `ruff src tests`
-- Type check: `mypy src`
+The memory system uses ChromaDB for vector storage with:
 
-## Requirements
+- **Short-term**: Recent conversation context (24-hour default retention)
+- **Long-term**: Important facts and user preferences
+- **Episodic**: Specific events and experiences with timestamps
+- **Semantic**: General knowledge and concepts
+
+Features include:
+- Automatic memory consolidation from short to long-term based on importance scores
+- Vector similarity search with configurable thresholds
+- Personal information prioritization in RAG retrieval
+- Memory deduplication and contradiction filtering
+
+## 🔧 Development
+
+### Install dev dependencies
+```bash
+pip install -e ".[dev]"
+```
+
+### Run tests
+```bash
+pytest --cov=src --cov-report=html
+```
+
+### Code formatting
+```bash
+black src tests
+ruff src tests
+mypy src
+```
+
+## 📋 Requirements
 
 - Python 3.10+
-- Ollama (for local models)
-- OpenAI API key (optional)
-- LM Studio (optional)
+- ChromaDB for vector storage
+- Kivy for GUI
+- sentence-transformers for embeddings
+- Optional: Ollama, OpenAI API key, LM Studio
 
-## License
+## 🔌 MCP Integration
 
-MIT License - see LICENSE file for details.
+Supports WebSocket connections to MCP servers for extended functionality. Configure servers in the settings screen or via configuration files.
+
+## ⚙️ Configuration
+
+The application uses Pydantic for configuration management with support for:
+- Environment variables
+- JSON configuration files
+- Runtime configuration updates
+
+## 📜 License
+
+MIT License

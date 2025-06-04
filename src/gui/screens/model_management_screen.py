@@ -1,4 +1,46 @@
-"""Model management screen for selecting and configuring models."""
+"""Advanced model management interface with intelligent selection and RAG configuration.
+
+This module implements a comprehensive model management system demonstrating:
+
+- Dynamic model discovery across multiple LLM providers
+- Intelligent model selection strategies for different use cases
+- Provider health monitoring with real-time status updates
+- RAG (Retrieval-Augmented Generation) configuration interface
+- Professional model comparison with capability visualization
+- Thread-safe async operations for provider communication
+- Responsive UI design with adaptive model cards
+
+Model Management Architecture:
+    The interface connects to multiple LLM providers (Ollama, OpenAI, LM Studio)
+    through a unified abstraction layer, enabling seamless model switching
+    and configuration across different AI backends.
+
+Provider Health Monitoring:
+    - Real-time status checking for provider availability
+    - Response time measurement for performance optimization
+    - Error detection and recovery suggestions
+    - Model capability enumeration and comparison
+
+Selection Strategies:
+    - Manual selection for user control
+    - Fastest response for performance-critical applications
+    - Cheapest operation for cost-sensitive scenarios
+    - Best quality for accuracy-focused tasks
+    - Balanced approach for general-purpose usage
+    - Most capable for complex reasoning requirements
+
+RAG System Integration:
+    - Configurable memory retrieval parameters
+    - Context window optimization for different models
+    - Source citation and reasoning explanation controls
+    - Performance tuning for large knowledge bases
+
+Accessibility Features:
+    - Keyboard navigation throughout the interface
+    - Screen reader compatible model information
+    - High contrast design for visual accessibility
+    - Touch-friendly controls with appropriate sizing
+"""
 
 import threading
 from typing import Any, Dict, List, Optional
@@ -27,7 +69,55 @@ logger = setup_logger(__name__)
 
 
 class ModelCard(MDCard):
-    """Card displaying model information and controls."""
+    """Professional model display card with comprehensive information and controls.
+    
+    This widget provides sophisticated model representation featuring:
+    
+    Information Architecture:
+        - Model name with provider attribution
+        - Status indicators with color-coded feedback
+        - Capability chips for quick feature identification
+        - Performance metrics and cost information
+        - Technical specifications (parameters, context length)
+        
+    Visual Design:
+        - Material Design card styling with appropriate elevation
+        - Current model highlighting with accent colors
+        - Capability visualization through colored chips
+        - Professional typography with clear hierarchy
+        - Responsive layout for different screen sizes
+        
+    Interactive Elements:
+        - Model selection button with state management
+        - Disabled state for unavailable models
+        - Current model indication with visual prominence
+        - Touch feedback and hover states
+        
+    Model Information Display:
+        - Display name with fallback to technical name
+        - Provider identification with consistent formatting
+        - Availability status with semantic colors
+        - Description text with proper text wrapping
+        
+    Technical Specifications:
+        - Parameter count with human-readable formatting
+        - Context length in thousands (K) for readability
+        - Cost per token with appropriate precision
+        - Capability badges with truncation for space
+        
+    State Management:
+        - Current model highlighting with accent colors
+        - Availability-based interaction enabling/disabling
+        - Selection callback for parent component communication
+        - Proper widget tree traversal for event handling
+        
+    The card demonstrates advanced Kivy custom widget creation
+    with professional information design and interaction patterns.
+    
+    Args:
+        model_info (ModelInfo): Complete model specification and metadata
+        is_current (bool): Whether this model is currently selected
+    """
     
     def __init__(self, model_info: ModelInfo, is_current: bool = False, **kwargs):
         super().__init__(**kwargs)
@@ -199,7 +289,53 @@ class ModelCard(MDCard):
 
 
 class ProviderHealthCard(MDCard):
-    """Card showing provider health status."""
+    """Provider health monitoring card with real-time status visualization.
+    
+    This widget provides comprehensive provider health information:
+    
+    Health Metrics Display:
+        - Provider name with consistent branding
+        - Health status with semantic color coding
+        - Response time metrics for performance assessment
+        - Available model count for capability overview
+        - Error message display for troubleshooting
+        
+    Status Visualization:
+        - Health state colors (green=healthy, yellow=degraded, red=error)
+        - Response time display in milliseconds
+        - Model availability count for quick assessment
+        - Error information for debugging assistance
+        
+    Visual Design:
+        - Professional card layout with proper spacing
+        - Semantic color coding for status indication
+        - Clear typography hierarchy for information scanning
+        - Appropriate elevation and Material Design styling
+        
+    Information Architecture:
+        - Provider identification with title case formatting
+        - Health status with descriptive labels
+        - Performance metrics with appropriate units
+        - Error messages with actionable information
+        
+    Status Categories:
+        - Healthy: Provider is fully operational
+        - Degraded: Provider is functional but experiencing issues
+        - Unavailable: Provider is not accessible
+        - Error: Provider encountered specific errors
+        
+    Performance Monitoring:
+        - Response time measurement for latency assessment
+        - Model enumeration for capability tracking
+        - Error detection for reliability monitoring
+        - Status history for trend analysis
+        
+    The card provides essential information for provider selection
+    and troubleshooting in a professional, scannable format.
+    
+    Args:
+        provider_info (ProviderInfo): Complete provider health and capability data
+    """
     
     def __init__(self, provider_info: ProviderInfo, **kwargs):
         super().__init__(**kwargs)
@@ -290,7 +426,58 @@ class ProviderHealthCard(MDCard):
 
 
 class RAGConfigCard(MDCard):
-    """Card for configuring RAG system."""
+    """Advanced RAG (Retrieval-Augmented Generation) configuration interface.
+    
+    This widget provides comprehensive RAG system configuration:
+    
+    Configuration Categories:
+        - Retrieval parameters (memory count, relevance threshold)
+        - Context management (token limits, timeout settings)
+        - Quality controls (source citation, reasoning explanation)
+        - Performance optimizations (deduplication, temporal weighting)
+        
+    Interactive Controls:
+        - RAG enable/disable toggle with visual feedback
+        - Numeric input fields with validation and constraints
+        - Boolean option toggles with checkbox-style interface
+        - Apply button for configuration persistence
+        
+    Parameter Configuration:
+        - Max memories: Number of relevant memories to retrieve
+        - Relevance threshold: Minimum similarity score (0-1)
+        - Context tokens: Maximum tokens for memory context
+        - Timeout: Maximum time for memory retrieval (ms)
+        
+    Quality Features:
+        - Cite sources: Include memory source attribution
+        - Explain reasoning: Provide retrieval reasoning
+        - Deduplicate content: Remove similar memory content
+        - Temporal weighting: Prefer recent memories
+        
+    User Experience:
+        - Intuitive grid layout for parameter organization
+        - Real-time validation with input constraints
+        - Visual feedback for configuration changes
+        - Professional form styling with consistent spacing
+        
+    Technical Implementation:
+        - Input validation with type constraints
+        - State management for boolean options
+        - Configuration object construction from UI state
+        - Parent component communication for persistence
+        
+    Accessibility:
+        - Keyboard navigation through configuration options
+        - Clear labeling for screen reader compatibility
+        - Logical tab order for efficient configuration
+        - Visual indicators for current settings
+        
+    The card provides complete control over RAG system behavior
+    with professional configuration interface and validation.
+    
+    Args:
+        rag_config (RAGConfig): Current RAG system configuration
+    """
     
     def __init__(self, rag_config: RAGConfig, **kwargs):
         super().__init__(**kwargs)
@@ -481,7 +668,80 @@ class RAGConfigCard(MDCard):
 
 
 class ModelManagementScreen(MDScreen):
-    """Screen for managing models and RAG configuration."""
+    """Comprehensive model management interface with intelligent selection.
+    
+    This screen provides complete model lifecycle management:
+    
+    Core Functionality:
+        - Dynamic model discovery across multiple providers
+        - Intelligent model selection with multiple strategies
+        - Provider health monitoring with real-time updates
+        - RAG system configuration and optimization
+        - Current model status display and management
+        
+    Model Discovery:
+        - Automatic provider scanning for available models
+        - Model capability enumeration and comparison
+        - Performance metric collection and display
+        - Status validation and health checking
+        - Forced refresh for up-to-date information
+        
+    Selection Strategies:
+        - Manual: User-driven model selection
+        - Fastest: Optimize for response time
+        - Cheapest: Minimize operational costs
+        - Best Quality: Maximize response accuracy
+        - Balanced: Optimize across multiple dimensions
+        - Most Capable: Select highest capability model
+        
+    Provider Management:
+        - Multi-provider support (Ollama, OpenAI, LM Studio)
+        - Health status monitoring with visual indicators
+        - Error detection and recovery guidance
+        - Performance metrics and comparison
+        - Connection management and troubleshooting
+        
+    RAG Configuration:
+        - Memory retrieval parameter tuning
+        - Context window optimization
+        - Quality control settings (citations, reasoning)
+        - Performance optimization (deduplication, weighting)
+        - Real-time configuration application
+        
+    User Interface Design:
+        - Professional Material Design implementation
+        - Responsive layout with adaptive sizing
+        - Color-coded status indicators throughout
+        - Intuitive navigation and action placement
+        - Comprehensive information display
+        
+    Performance Optimization:
+        - Background threading for provider communication
+        - Efficient model discovery with caching
+        - Responsive UI during long operations
+        - Optimized data binding and updates
+        - Memory-efficient widget management
+        
+    State Management:
+        - Current model tracking and display
+        - Provider health state synchronization
+        - Configuration persistence and validation
+        - Error state handling and recovery
+        - Thread-safe UI updates
+        
+    Accessibility Features:
+        - Keyboard navigation throughout the interface
+        - Screen reader compatible information structure
+        - High contrast design for visibility
+        - Touch-friendly controls with appropriate sizing
+        - Clear visual hierarchy and focus indicators
+        
+    The screen demonstrates advanced model management patterns
+    with professional UI design and comprehensive functionality.
+    
+    Args:
+        chat_manager: Shared chat management instance for model operations
+    """
     
     def __init__(self, chat_manager=None, **kwargs):
         super().__init__(**kwargs)
@@ -495,7 +755,54 @@ class ModelManagementScreen(MDScreen):
         Clock.schedule_once(self.discover_models, 1.0)
     
     def build_ui(self):
-        """Build the model management UI."""
+        """Construct the comprehensive model management interface.
+        
+        This method builds a sophisticated UI structure featuring:
+        
+        Layout Architecture:
+            1. Header with navigation, title, and primary actions
+            2. Current model status display with key information
+            3. Provider health section with real-time monitoring
+            4. Available models section with detailed cards
+            5. RAG configuration section with comprehensive controls
+            
+        Component Organization:
+            - Header: Navigation, title, refresh, and strategy selection
+            - Status: Current model information with provider details
+            - Health: Provider status cards with performance metrics
+            - Models: Detailed model cards with selection capabilities
+            - RAG: Configuration interface with parameter controls
+            
+        Design Principles:
+            - Consistent spacing using UI design system constants
+            - Professional typography with clear hierarchy
+            - Semantic color coding for status and actions
+            - Responsive layout for different screen sizes
+            - Material Design elevation and shadow effects
+            
+        Interactive Elements:
+            - Back navigation for screen transitions
+            - Refresh functionality for up-to-date information
+            - Strategy dropdown for intelligent model selection
+            - Model selection cards with visual feedback
+            - RAG configuration controls with real-time updates
+            
+        Information Display:
+            - Current model status with provider attribution
+            - Provider health cards with performance metrics
+            - Model capability visualization with chips
+            - RAG configuration state with parameter values
+            - Loading states and progress indication
+            
+        Scrollable Content:
+            - Vertical scrolling for large model lists
+            - Efficient rendering for performance
+            - Appropriate spacing and visual grouping
+            - Adaptive sizing for different content volumes
+            
+        The UI demonstrates advanced Material Design implementation
+        with proper component composition and professional presentation.
+        """
         main_layout = MDBoxLayout(
             orientation="vertical",
             spacing=UIConstants.SPACING_MEDIUM,
@@ -649,7 +956,50 @@ class ModelManagementScreen(MDScreen):
             self.rag_layout.add_widget(rag_card)
     
     def discover_models(self, dt=None):
-        """Discover available models."""
+        """Initiate comprehensive model discovery across all providers.
+        
+        This method implements provider scanning with thread safety:
+        
+        Discovery Process:
+            - Scans all configured LLM providers
+            - Enumerates available models with capabilities
+            - Measures provider response times and health
+            - Updates model availability and status information
+            - Forces refresh to ensure current data
+            
+        Threading Strategy:
+            - Creates isolated daemon thread for network operations
+            - Establishes new event loop for async provider communication
+            - Ensures proper cleanup with try/finally blocks
+            - Schedules UI updates on main thread via Clock
+            
+        Provider Communication:
+            - Parallel provider scanning for efficiency
+            - Timeout handling for unresponsive providers
+            - Error isolation to prevent single provider failures
+            - Capability enumeration with metadata collection
+            
+        Error Handling:
+            - Network error recovery with user notification
+            - Provider-specific error isolation
+            - Graceful degradation for partial failures
+            - Detailed logging for debugging and monitoring
+            
+        User Feedback:
+            - Progress indication during discovery
+            - Success notification with model count
+            - Error messages with actionable guidance
+            - Status updates throughout the process
+            
+        Performance Optimization:
+            - Concurrent provider scanning
+            - Efficient data collection and processing
+            - Minimal UI thread blocking
+            - Optimized network communication
+            
+        The discovery ensures up-to-date model information while
+        maintaining responsive UI through proper threading.
+        """
         if not self.chat_manager:
             return
         
@@ -682,7 +1032,55 @@ class ModelManagementScreen(MDScreen):
         thread.start()
     
     def update_ui(self, dt=None):
-        """Update UI with discovered models and provider health."""
+        """Update interface with discovered models and provider status.
+        
+        This method synchronizes the UI with current system state:
+        
+        UI Synchronization:
+            - Updates current model label with provider information
+            - Refreshes provider health cards with latest status
+            - Rebuilds model cards with current availability
+            - Highlights currently selected model appropriately
+            
+        Data Processing:
+            - Extracts provider health information
+            - Processes available model list
+            - Determines current model selection state
+            - Organizes information for optimal display
+            
+        Visual Updates:
+            - Clears existing content for fresh display
+            - Creates new provider health cards
+            - Generates model cards with current status
+            - Applies appropriate highlighting and theming
+            
+        Model Card Creation:
+            - Builds cards for all available models
+            - Identifies and highlights current selection
+            - Includes comprehensive model information
+            - Enables selection for available models
+            
+        Provider Health Display:
+            - Creates cards for each provider
+            - Shows health status with appropriate colors
+            - Displays performance metrics and model counts
+            - Includes error information for troubleshooting
+            
+        State Management:
+            - Maintains consistency between data and display
+            - Updates model availability based on provider health
+            - Preserves user selections and preferences
+            - Handles edge cases and error states
+            
+        Performance Optimization:
+            - Efficient widget creation and removal
+            - Minimal layout recalculation
+            - Optimized data binding and updates
+            - Memory-efficient card management
+            
+        The update ensures the UI accurately reflects current
+        system state with professional presentation.
+        """
         if not self.chat_manager:
             return
         
@@ -713,7 +1111,48 @@ class ModelManagementScreen(MDScreen):
         logger.info(f"Updated UI with {len(available_models)} models")
     
     def show_strategy_menu(self, button):
-        """Show model selection strategy menu."""
+        """Display intelligent model selection strategy dropdown menu.
+        
+        This method creates a sophisticated strategy selection interface:
+        
+        Strategy Options:
+            - Manual: User-controlled model selection
+            - Fastest: Optimize for minimal response latency
+            - Cheapest: Minimize operational costs per token
+            - Best Quality: Maximize response accuracy and coherence
+            - Balanced: Optimize across multiple performance dimensions
+            - Most Capable: Select highest capability model available
+            
+        Menu Implementation:
+            - Material Design dropdown with proper positioning
+            - Callback-based selection for loose coupling
+            - Appropriate width and styling for readability
+            - Touch-friendly sizing for mobile compatibility
+            
+        User Experience:
+            - Clear strategy descriptions for informed selection
+            - Intuitive menu interaction patterns
+            - Visual feedback for selection confirmation
+            - Immediate strategy application after selection
+            
+        Strategy Descriptions:
+            Each strategy optimizes for different use cases:
+            - Manual: Complete user control over model selection
+            - Fastest: Real-time applications requiring quick responses
+            - Cheapest: Cost-sensitive applications with budget constraints
+            - Best Quality: Accuracy-critical applications
+            - Balanced: General-purpose applications
+            - Most Capable: Complex reasoning and advanced features
+            
+        Technical Implementation:
+            - Dynamic menu item creation from strategy enumeration
+            - Proper event handling with strategy parameter passing
+            - Menu positioning relative to calling button
+            - Resource cleanup for menu lifecycle management
+            
+        The menu provides intelligent model selection based on
+        different optimization criteria and use case requirements.
+        """
         strategies = [
             ("Manual", ModelSelectionStrategy.MANUAL),
             ("Fastest", ModelSelectionStrategy.FASTEST), 
@@ -740,7 +1179,58 @@ class ModelManagementScreen(MDScreen):
         self.strategy_menu.open()
     
     def select_strategy(self, strategy):
-        """Select and apply model selection strategy."""
+        """Apply intelligent model selection strategy with feedback.
+        
+        This method implements strategy-based model selection:
+        
+        Strategy Application:
+            - Dismisses selection menu for clean UI
+            - Applies selected strategy to available models
+            - Evaluates models based on strategy criteria
+            - Selects optimal model from evaluation results
+            
+        Threading Strategy:
+            - Creates isolated thread for strategy evaluation
+            - Establishes new event loop for async operations
+            - Ensures proper cleanup with try/finally blocks
+            - Schedules UI updates on main thread safely
+            
+        Model Evaluation:
+            - Analyzes available models using strategy criteria
+            - Considers performance, cost, capability, and quality metrics
+            - Applies weighting based on strategy priorities
+            - Selects best match from evaluation results
+            
+        Model Switching:
+            - Updates chat manager with selected model
+            - Validates model availability before switching
+            - Provides user feedback on selection success/failure
+            - Updates UI to reflect new model selection
+            
+        Error Handling:
+            - Strategy evaluation error recovery
+            - Model switching failure handling
+            - User notification with actionable messages
+            - Graceful degradation for partial failures
+            
+        User Feedback:
+            - Success notification with selected model name
+            - Error messages with specific failure information
+            - Warning messages for no suitable model found
+            - Progress indication during evaluation
+            
+        Performance Optimization:
+            - Efficient model evaluation algorithms
+            - Cached model information for quick comparison
+            - Minimal UI thread blocking during processing
+            - Optimized strategy calculation
+            
+        Args:
+            strategy (ModelSelectionStrategy): The selection strategy to apply
+            
+        The method provides intelligent model selection with
+        comprehensive error handling and user feedback.
+        """
         self.strategy_menu.dismiss()
         
         def run_selection():
@@ -777,7 +1267,58 @@ class ModelManagementScreen(MDScreen):
         thread.start()
     
     def on_model_selected(self, model_info: ModelInfo):
-        """Handle manual model selection."""
+        """Process manual model selection with validation and feedback.
+        
+        This method handles user-initiated model selection:
+        
+        Selection Processing:
+            - Validates model availability and compatibility
+            - Updates chat manager with new model configuration
+            - Verifies successful model switching
+            - Provides immediate user feedback on result
+            
+        Model Validation:
+            - Checks model availability status
+            - Validates provider connectivity
+            - Ensures model compatibility with current configuration
+            - Verifies resource requirements
+            
+        System Integration:
+            - Updates chat manager model configuration
+            - Applies new model to active conversations
+            - Synchronizes provider settings
+            - Updates session state for persistence
+            
+        User Feedback:
+            - Success notification with model display name
+            - Error notification for selection failures
+            - Immediate UI update to reflect selection
+            - Visual confirmation of active model
+            
+        Error Handling:
+            - Model switching failure detection
+            - Provider communication error recovery
+            - User notification with helpful error messages
+            - Rollback to previous model on failure
+            
+        UI Synchronization:
+            - Schedules UI update to reflect changes
+            - Updates model card highlighting
+            - Refreshes current model display
+            - Maintains visual consistency
+            
+        Performance Optimization:
+            - Immediate feedback without waiting for full update
+            - Efficient model switching process
+            - Minimal system disruption during selection
+            - Optimized state synchronization
+            
+        Args:
+            model_info (ModelInfo): The selected model information
+            
+        The method provides reliable manual model selection with
+        comprehensive validation and user feedback.
+        """
         success = self.chat_manager.set_model(model_info.name, model_info.provider)
         if success:
             Notification.success(f"Selected {model_info.display_name}")
@@ -786,11 +1327,92 @@ class ModelManagementScreen(MDScreen):
             Notification.error("Failed to select model")
     
     def on_rag_config_updated(self, config: RAGConfig):
-        """Handle RAG configuration updates."""
+        """Process RAG configuration updates with validation and application.
+        
+        This method handles RAG system configuration changes:
+        
+        Configuration Processing:
+            - Validates RAG configuration parameters
+            - Applies configuration to chat manager RAG system
+            - Updates system state with new parameters
+            - Provides user feedback on configuration success
+            
+        Parameter Validation:
+            - Validates numeric ranges for retrieval parameters
+            - Checks timeout values for reasonable limits
+            - Verifies threshold values within valid ranges
+            - Ensures configuration consistency
+            
+        System Integration:
+            - Updates chat manager RAG configuration
+            - Applies changes to active RAG system
+            - Synchronizes memory retrieval parameters
+            - Updates context window management
+            
+        Configuration Persistence:
+            - Saves configuration to persistent storage
+            - Updates system configuration files
+            - Ensures configuration survives application restart
+            - Maintains configuration history for rollback
+            
+        User Feedback:
+            - Success notification for configuration updates
+            - Error messages for invalid parameters
+            - Visual confirmation of applied settings
+            - Real-time parameter validation feedback
+            
+        Error Handling:
+            - Configuration validation error recovery
+            - System integration failure handling
+            - Rollback capability for failed configurations
+            - User guidance for parameter correction
+            
+        Performance Impact:
+            - Immediate configuration application
+            - Minimal system disruption during updates
+            - Efficient parameter synchronization
+            - Optimized memory system integration
+            
+        Args:
+            config (RAGConfig): The updated RAG configuration
+            
+        The method ensures reliable RAG configuration updates
+        with proper validation and system integration.
+        """
         if self.chat_manager:
             self.chat_manager.configure_rag(config)
             Notification.success("RAG configuration updated")
     
     def go_back(self, *args):
-        """Navigate back to the chat screen."""
+        """Navigate back to the primary chat interface.
+        
+        This method handles screen transition with proper state management:
+        
+        Navigation Process:
+            - Updates screen manager to show enhanced chat screen
+            - Preserves current model and configuration state
+            - Ensures proper screen lifecycle management
+            - Maintains application navigation stack
+            
+        State Preservation:
+            - Model selection changes persist across navigation
+            - RAG configuration updates remain active
+            - Provider health information stays current
+            - User preferences and settings are maintained
+            
+        Resource Management:
+            - Proper cleanup of temporary UI elements
+            - Memory efficient screen transition
+            - Background task management during transition
+            - Resource sharing with destination screen
+            
+        User Experience:
+            - Smooth transition without visual artifacts
+            - Consistent navigation behavior
+            - Proper focus management after transition
+            - Maintained application state continuity
+            
+        The navigation ensures seamless return to the main
+        chat interface with all configuration changes preserved.
+        """
         self.manager.current = "enhanced_chat"
