@@ -67,9 +67,9 @@ class SettingsScreen(MDScreen):
             SettingsListItem(text="LLM Providers", on_release=self.open_provider_settings)
         )
 
-        # Memory settings
+        # Memory management (redirect to advanced screen)
         settings_list.add_widget(
-            SettingsListItem(text="Memory Configuration", on_release=self.open_memory_settings)
+            SettingsListItem(text="Memory Management", on_release=self.open_memory_management)
         )
 
         # MCP settings
@@ -122,10 +122,10 @@ class SettingsScreen(MDScreen):
         logger.info("Opening provider settings")
         self.manager.current = "provider_config"
 
-    def open_memory_settings(self, *args):
-        """Open memory configuration."""
-        logger.info("Opening memory settings")
-        self.manager.current = "memory"
+    def open_memory_management(self, *args):
+        """Open advanced memory management."""
+        logger.info("Opening advanced memory management")
+        self.manager.current = "advanced_memory"
 
     def open_mcp_settings(self, *args):
         """Open MCP server settings."""

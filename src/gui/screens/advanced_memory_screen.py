@@ -328,9 +328,9 @@ class AdvancedMemoryScreen(MDScreen):
 
         self.toolbar.right_action_items = [
             ["magnify", lambda x: self._toggle_search()],
-            ["filter-variant", lambda x: self._show_filter_dialog()],
+            ["plus-circle", lambda x: self._show_add_memory_dialog()],
             ["export", lambda x: self._show_export_dialog()],
-            ["cog", lambda x: self._show_settings_dialog()],
+            ["database-cog", lambda x: self._optimize_database()],
         ]
 
         main_layout.add_widget(self.toolbar)
@@ -348,13 +348,21 @@ class AdvancedMemoryScreen(MDScreen):
         self.stats_cards = {}
         main_layout.add_widget(self.stats_layout)
 
-        # Search bar (initially hidden)
+        # Enhanced search bar (initially hidden)
         self.search_layout = MDBoxLayout(
-            orientation="horizontal",
+            orientation="vertical",
             size_hint_y=None,
             height=0,
             opacity=0,
             padding=dp(16),
+            spacing=dp(8),
+        )
+
+        # Search input row
+        search_input_layout = MDBoxLayout(
+            orientation="horizontal",
+            size_hint_y=None,
+            height=dp(40),
             spacing=dp(8),
         )
 
@@ -364,13 +372,36 @@ class AdvancedMemoryScreen(MDScreen):
         )
 
         search_btn = MDIconButton(icon="magnify", on_release=lambda x: self._perform_search())
-
+        filter_btn = MDIconButton(icon="filter", on_release=lambda x: self._show_search_filters())
         clear_search_btn = MDIconButton(icon="close", on_release=lambda x: self._clear_search())
 
-        self.search_layout.add_widget(self.search_field)
-        self.search_layout.add_widget(search_btn)
-        self.search_layout.add_widget(clear_search_btn)
+        search_input_layout.add_widget(self.search_field)
+        search_input_layout.add_widget(search_btn)
+        search_input_layout.add_widget(filter_btn)
+        search_input_layout.add_widget(clear_search_btn)
 
+        self.search_layout.add_widget(search_input_layout)
+
+        # Quick search suggestions
+        self.suggestions_layout = MDBoxLayout(
+            orientation="horizontal",
+            size_hint_y=None,
+            height=dp(30),
+            spacing=dp(8),
+        )
+        
+        # Add some common search suggestions
+        suggestions = ["important memories", "recent conversations", "user preferences", "code examples"]
+        for suggestion in suggestions:
+            chip = MDChip(
+                text=suggestion,
+                size_hint=(None, None),
+                height=dp(25),
+                on_release=lambda x, s=suggestion: self._apply_suggestion(s)
+            )
+            self.suggestions_layout.add_widget(chip)
+        
+        self.search_layout.add_widget(self.suggestions_layout)
         main_layout.add_widget(self.search_layout)
 
         # Content area (just use the memories tab for now)
@@ -657,11 +688,11 @@ class AdvancedMemoryScreen(MDScreen):
     async def _load_memories_async(self):
         """Load memories asynchronously."""
         try:
-            # Load all memories by searching with empty query
+            # Load all memories by searching with wildcard query
             all_memories = []
             for memory_type in MemoryType:
-                memories = await self.safe_memory.safe_search(
-                    query="", memory_type=memory_type, limit=1000, threshold=0.0
+                memories = await self.safe_memory.safe_recall(
+                    query="*", memory_types=[memory_type], limit=1000, threshold=0.0
                 )
                 all_memories.extend(memories)
 
@@ -812,7 +843,7 @@ class AdvancedMemoryScreen(MDScreen):
         """Toggle search bar visibility."""
         if self.search_layout.height == 0:
             # Show search
-            anim = Animation(height=dp(60), opacity=1, duration=0.3)
+            anim = Animation(height=dp(100), opacity=1, duration=0.3)
             anim.start(self.search_layout)
             self.search_field.focus = True
         else:
@@ -820,6 +851,99 @@ class AdvancedMemoryScreen(MDScreen):
             anim = Animation(height=0, opacity=0, duration=0.3)
             anim.start(self.search_layout)
             self._clear_search()
+    
+    def _apply_suggestion(self, suggestion: str):
+        """Apply a search suggestion."""
+        self.search_field.text = suggestion
+        self.search_query = suggestion.lower()
+        self._perform_search()
+    
+    def _show_search_filters(self):
+        """Show advanced search filters dialog."""
+        from kivymd.uix.button import MDRaisedButton
+        from kivymd.uix.selectioncontrol import MDCheckbox
+
+        content = MDBoxLayout(
+            orientation="vertical", spacing=dp(15), size_hint_y=None, height=dp(300)
+        )
+
+        content.add_widget(
+            MDLabel(text="Search Filters", font_style="H6", size_hint_y=None, height=dp(30))
+        )
+
+        # Memory type filters
+        type_label = MDLabel(
+            text="Memory Types:", size_hint_y=None, height=dp(25), theme_text_color="Primary"
+        )
+        content.add_widget(type_label)
+
+        self.filter_checkboxes = {}
+        for memory_type in MemoryType:
+            type_layout = MDBoxLayout(
+                orientation="horizontal", size_hint_y=None, height=dp(30), spacing=dp(10)
+            )
+            checkbox = MDCheckbox(active=True, size_hint=(None, None), size=(dp(20), dp(20)))
+            label = MDLabel(text=memory_type.value.replace("_", " ").title(), theme_text_color="Primary")
+            
+            type_layout.add_widget(checkbox)
+            type_layout.add_widget(label)
+            content.add_widget(type_layout)
+            
+            self.filter_checkboxes[memory_type] = checkbox
+
+        # Importance range
+        importance_label = MDLabel(
+            text="Minimum Importance:", size_hint_y=None, height=dp(25), theme_text_color="Primary"
+        )
+        content.add_widget(importance_label)
+
+        self.importance_filter_slider = MDSlider(
+            min=0.0, max=1.0, value=0.0, step=0.1, size_hint_y=None, height=dp(40)
+        )
+        content.add_widget(self.importance_filter_slider)
+
+        dialog = MDDialog(
+            title="Search Filters",
+            type="custom",
+            content_cls=content,
+            size_hint=(0.8, None),
+            height=dp(400),
+            buttons=[
+                MDRaisedButton(text="Clear Filters", on_release=lambda x: self._clear_filters(dialog)),
+                MDRaisedButton(text="Apply", on_release=lambda x: self._apply_filters(dialog)),
+            ],
+        )
+        dialog.open()
+    
+    def _clear_filters(self, dialog):
+        """Clear all search filters."""
+        for checkbox in self.filter_checkboxes.values():
+            checkbox.active = True
+        self.importance_filter_slider.value = 0.0
+        
+    def _apply_filters(self, dialog):
+        """Apply search filters."""
+        dialog.dismiss()
+        
+        # Get selected memory types
+        selected_types = [
+            memory_type for memory_type, checkbox in self.filter_checkboxes.items()
+            if checkbox.active
+        ]
+        
+        min_importance = self.importance_filter_slider.value
+        
+        # Filter memories
+        filtered = []
+        for memory in self.filtered_memories:
+            if (memory.memory_type in selected_types and 
+                memory.importance >= min_importance):
+                filtered.append(memory)
+        
+        self.filtered_memories = filtered
+        self._refresh_memories_list()
+        
+        Notification.info(f"Applied filters: {len(filtered)} memories match criteria")
 
     def _on_search_text_change(self, instance, text):
         """Handle search text changes."""
@@ -836,23 +960,72 @@ class AdvancedMemoryScreen(MDScreen):
         if not self.search_query:
             return
 
+        def run_async_search():
+            try:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                loop.run_until_complete(self._search_memories_async())
+            except Exception as e:
+                logger.error(f"Search failed: {e}")
+                Clock.schedule_once(lambda dt: Notification.error("Search failed"), 0)
+            finally:
+                loop.close()
+
+        thread = threading.Thread(target=run_async_search)
+        thread.daemon = True  
+        thread.start()
+
+    async def _search_memories_async(self):
+        """Perform async memory search with semantic similarity."""
         try:
-            self.filtered_memories = [
+            # Use semantic search with the memory system
+            semantic_results = await self.safe_memory.safe_recall(
+                query=self.search_query, 
+                memory_types=None,  # Search all types
+                threshold=0.3,  # Lower threshold for better recall
+                limit=50
+            )
+            
+            # Also perform text-based filtering on existing memories
+            text_filtered = [
                 memory
                 for memory in self.memories
                 if (
-                    self.search_query in memory.content.lower()
-                    or self.search_query in memory.memory_type.value.lower()
-                    or any(self.search_query in str(v).lower() for v in memory.metadata.values())
+                    self.search_query.lower() in memory.content.lower()
+                    or self.search_query.lower() in memory.memory_type.value.lower()
+                    or any(self.search_query.lower() in str(v).lower() for v in memory.metadata.values())
                 )
             ]
-
-            self._refresh_memories_list()
-            Notification.info(f"Found {len(self.filtered_memories)} matching memories")
+            
+            # Combine results, avoiding duplicates
+            combined_results = semantic_results.copy()
+            for memory in text_filtered:
+                if not any(m.id == memory.id for m in combined_results):
+                    combined_results.append(memory)
+            
+            # Update UI on main thread
+            Clock.schedule_once(
+                lambda dt: self._update_search_results(combined_results), 0
+            )
 
         except Exception as e:
-            logger.error(f"Search failed: {e}")
-            Notification.error("Search failed")
+            logger.error(f"Async search failed: {e}")
+            Clock.schedule_once(lambda dt: Notification.error("Search failed"), 0)
+
+    def _update_search_results(self, results):
+        """Update UI with search results."""
+        try:
+            self.filtered_memories = results
+            self._refresh_memories_list()
+            
+            if len(results) > 0:
+                Notification.success(f"Found {len(results)} matching memories")
+            else:
+                Notification.info("No memories found matching your search")
+                
+        except Exception as e:
+            logger.error(f"Failed to update search results: {e}")
+            Notification.error("Failed to update search results")
 
     def _clear_search(self):
         """Clear search and show all memories."""
@@ -1634,8 +1807,9 @@ class AdvancedMemoryScreen(MDScreen):
                 self.memories = [m for m in self.memories if m.id != memory.id]
                 self.filtered_memories = [m for m in self.filtered_memories if m.id != memory.id]
 
-                # Update UI
+                # Update UI and stats
                 Clock.schedule_once(lambda dt: self._refresh_memories_list(), 0)
+                Clock.schedule_once(lambda dt: self._refresh_stats(), 0)
                 Clock.schedule_once(
                     lambda dt: Notification.success("Memory deleted successfully"), 0
                 )
@@ -1645,6 +1819,30 @@ class AdvancedMemoryScreen(MDScreen):
         except Exception as e:
             logger.error(f"Memory deletion error: {e}")
             Clock.schedule_once(lambda dt: Notification.error("Memory deletion failed"), 0)
+    
+    def _refresh_stats(self):
+        """Refresh memory statistics after changes."""
+        def run_stats_refresh():
+            try:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                loop.run_until_complete(self._refresh_stats_async())
+            except Exception as e:
+                logger.error(f"Stats refresh failed: {e}")
+            finally:
+                loop.close()
+
+        thread = threading.Thread(target=run_stats_refresh)
+        thread.daemon = True
+        thread.start()
+
+    async def _refresh_stats_async(self):
+        """Refresh stats asynchronously."""
+        try:
+            stats = await self.safe_memory.safe_get_stats()
+            Clock.schedule_once(lambda dt: self._update_stats_cards(stats), 0)
+        except Exception as e:
+            logger.error(f"Failed to refresh stats: {e}")
 
     def _select_edit_type(self, memory_type: MemoryType):
         """Select memory type for editing."""
@@ -1787,7 +1985,11 @@ class AdvancedMemoryScreen(MDScreen):
         """Create memory asynchronously."""
         try:
             # Prepare metadata
-            metadata = {"created_manually": True, "created_at": datetime.now().isoformat()}
+            metadata = {
+                "created_manually": True, 
+                "created_at": datetime.now().isoformat(),
+                "source": "manual_entry"
+            }
 
             if tags:
                 metadata["tags"] = tags
@@ -1801,10 +2003,10 @@ class AdvancedMemoryScreen(MDScreen):
             )
 
             if memory_id:
-                # Reload memories to include the new one
-                Clock.schedule_once(lambda dt: self._refresh_all(), 0)
+                # Refresh the memory list to include the new one
+                await self._load_memories_async()
                 Clock.schedule_once(
-                    lambda dt: Notification.success("Memory created successfully"), 0
+                    lambda dt: Notification.success(f"Memory created: {memory_id[:8]}..."), 0
                 )
             else:
                 Clock.schedule_once(lambda dt: Notification.error("Failed to create memory"), 0)

@@ -1,607 +1,810 @@
-"""Memory visualization and management screen."""
+"""Memory management screen with full CRUD operations."""
 
+import asyncio
+import threading
+from datetime import datetime
+from typing import Any
+
+from kivy.clock import Clock
 from kivy.metrics import dp
 from kivymd.uix.boxlayout import MDBoxLayout
-from kivymd.uix.button import MDFlatButton, MDRaisedButton
+from kivymd.uix.button import MDFlatButton, MDIconButton, MDRaisedButton
 from kivymd.uix.card import MDCard
+from kivymd.uix.dialog import MDDialog
 from kivymd.uix.label import MDLabel
-from kivymd.uix.progressbar import MDProgressBar
+from kivymd.uix.list import MDList, TwoLineListItem
 from kivymd.uix.screen import MDScreen
 from kivymd.uix.scrollview import MDScrollView
+from kivymd.uix.selectioncontrol import MDCheckbox
+from kivymd.uix.slider import MDSlider
+from kivymd.uix.textfield import MDTextField
 
+from src.gui.utils.notifications import Notification
+from src.memory import Memory, MemoryType
+from src.memory.safe_operations import create_safe_memory_manager
 from src.utils.logger import setup_logger
 
 logger = setup_logger(__name__)
 
 
-class MemoryCard(MDCard):
-    """Card widget for displaying memory information."""
+class MemoryListItem(MDCard):
+    """Card widget for displaying individual memories with action buttons."""
 
-    def __init__(
-        self, title: str, description: str, details: str, usage: float = 0.0, actions=None, **kwargs
-    ):
+    def __init__(self, memory: Memory, on_edit=None, on_delete=None, **kwargs):
         super().__init__(**kwargs)
-        self.orientation = "vertical"
-        self.padding = dp(20)
-        self.spacing = dp(15)
-        self.elevation = 3
-        self.md_bg_color = (0.12, 0.12, 0.12, 1)
+        self.memory = memory
+        self.on_edit = on_edit
+        self.on_delete = on_delete
+        
+        # Card properties
+        self.orientation = "horizontal"
         self.size_hint_y = None
-        self.adaptive_height = True
-        self.radius = [dp(12)]
+        self.height = dp(80)
+        self.padding = dp(12)
+        self.spacing = dp(12)
+        self.elevation = 2
+        self.md_bg_color = (0.10, 0.10, 0.12, 1)
+        self.radius = [dp(8)]
+        
+        # Build the layout
+        self._build_layout()
 
-        # Header layout
-        header_layout = MDBoxLayout(
-            orientation="horizontal", spacing=dp(10), adaptive_height=True, size_hint_y=None
-        )
-
+    def _build_layout(self):
+        """Build the memory item layout."""
+        # Content layout (left side)
+        content_layout = MDBoxLayout(orientation="vertical", spacing=dp(4))
+        
         # Title
+        title = self.memory.content[:60] + "..." if len(self.memory.content) > 60 else self.memory.content
         title_label = MDLabel(
             text=title,
+            font_style="Subtitle1",
             theme_text_color="Primary",
-            font_style="H6",
-            adaptive_height=True,
-            text_size=(None, None),
+            size_hint_y=None,
+            height=dp(24),
+            text_size=(None, None)
         )
-        header_layout.add_widget(title_label)
-
-        # Usage indicator
-        if usage > 0:
-            usage_label = MDLabel(
-                text=f"{usage:.1f}%",
-                theme_text_color="Custom",
-                text_color=(0.2, 0.8, 0.4, 1.0) if usage < 80 else (1.0, 0.6, 0.2, 1.0),
-                font_style="Subtitle1",
-                adaptive_height=True,
-                size_hint_x=None,
-                width=dp(60),
-            )
-            header_layout.add_widget(usage_label)
-
-        self.add_widget(header_layout)
-
-        # Description
-        desc_label = MDLabel(
-            text=description,
+        content_layout.add_widget(title_label)
+        
+        # Subtitle with memory info
+        subtitle = f"{self.memory.memory_type.value.replace('_', ' ').title()} • Importance: {self.memory.importance:.2f} • {self.memory.created_at.strftime('%m/%d %H:%M')}"
+        subtitle_label = MDLabel(
+            text=subtitle,
+            font_style="Caption",
             theme_text_color="Secondary",
-            font_style="Body1",
-            adaptive_height=True,
-            text_size=(None, None),
+            size_hint_y=None,
+            height=dp(20),
+            text_size=(None, None)
         )
-        self.add_widget(desc_label)
-
-        # Details
-        details_label = MDLabel(
-            text=details,
-            theme_text_color="Hint",
-            font_style="Body2",
-            adaptive_height=True,
-            text_size=(None, None),
+        content_layout.add_widget(subtitle_label)
+        
+        # Memory type chip
+        type_chip = MDLabel(
+            text=f"[{self.memory.memory_type.value.upper()}]",
+            font_style="Caption",
+            theme_text_color="Custom",
+            text_color=self._get_type_color(),
+            size_hint_y=None,
+            height=dp(16),
         )
-        self.add_widget(details_label)
+        content_layout.add_widget(type_chip)
+        
+        self.add_widget(content_layout)
+        
+        # Action buttons (right side)
+        button_layout = MDBoxLayout(
+            orientation="horizontal", 
+            size_hint_x=None, 
+            width=dp(80), 
+            spacing=dp(8)
+        )
+        
+        edit_btn = MDIconButton(
+            icon="pencil",
+            theme_icon_color="Primary", 
+            size_hint=(None, None),
+            size=(dp(36), dp(36)),
+            on_release=lambda x: self.on_edit(self.memory) if self.on_edit else None
+        )
+        
+        delete_btn = MDIconButton(
+            icon="delete",
+            theme_icon_color="Error",
+            size_hint=(None, None),
+            size=(dp(36), dp(36)),
+            on_release=lambda x: self.on_delete(self.memory) if self.on_delete else None
+        )
+        
+        button_layout.add_widget(edit_btn)
+        button_layout.add_widget(delete_btn)
+        
+        self.add_widget(button_layout)
 
-        # Usage bar
-        if usage > 0:
-            progress = MDProgressBar(
-                value=usage,
-                max=100,
-                size_hint_y=None,
-                height=dp(8),
-                color=(0.2, 0.8, 0.4, 1.0) if usage < 80 else (1.0, 0.6, 0.2, 1.0),
-            )
-            self.add_widget(progress)
-
-        # Action buttons
-        if actions:
-            actions_layout = MDBoxLayout(
-                orientation="horizontal",
-                spacing=dp(10),
-                adaptive_height=True,
-                size_hint_y=None,
-                height=dp(40),
-            )
-
-            for action_text, action_callback in actions:
-                btn = MDRaisedButton(
-                    text=action_text,
-                    size_hint_x=None,
-                    width=dp(100),
-                    height=dp(36),
-                    on_release=action_callback,
-                )
-                actions_layout.add_widget(btn)
-
-            actions_layout.add_widget(MDBoxLayout())  # Spacer
-            self.add_widget(actions_layout)
+    def _get_type_color(self):
+        """Get color for memory type."""
+        colors = {
+            MemoryType.SHORT_TERM: (0.2, 0.6, 1.0, 1),
+            MemoryType.LONG_TERM: (0.8, 0.4, 0.2, 1),
+            MemoryType.EPISODIC: (0.6, 0.2, 0.8, 1),
+            MemoryType.SEMANTIC: (0.2, 0.8, 0.4, 1),
+        }
+        return colors.get(self.memory.memory_type, (0.5, 0.5, 0.5, 1))
 
 
 class MemoryScreen(MDScreen):
-    """Memory management and visualization screen."""
+    """Memory management screen with search, add, edit, delete functionality."""
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
+        self.name = "memory"
+        
+        # Initialize memory manager
+        self.safe_memory = create_safe_memory_manager(self._memory_error_callback)
+        
+        # State
+        self.memories = []
+        self.filtered_memories = []
+        self.current_filter = None
+        self.search_query = ""
+        
         self.build_ui()
+        
+        # Load memories
+        Clock.schedule_once(self._load_memories, 0.1)
 
     def build_ui(self):
-        """Build the memory interface."""
-        # Main layout
+        """Build the memory management interface."""
         main_layout = MDBoxLayout(orientation="vertical")
 
-        # Top bar - custom toolbar
-        toolbar = MDBoxLayout(
+        # Toolbar
+        toolbar_layout = MDBoxLayout(
             orientation="horizontal",
             size_hint_y=None,
             height=dp(56),
             md_bg_color=(0.12, 0.12, 0.12, 1),
             padding=[dp(16), 0, dp(16), 0],
+            spacing=dp(10)
         )
 
         # Back button
-        back_btn = MDFlatButton(text="Back", on_release=lambda x: self.go_back())
-        toolbar.add_widget(back_btn)
+        back_btn = MDFlatButton(text="← Back", on_release=self._go_back)
+        toolbar_layout.add_widget(back_btn)
 
         # Title
         title_label = MDLabel(text="Memory Management", font_style="H6", theme_text_color="Primary")
-        toolbar.add_widget(title_label)
+        toolbar_layout.add_widget(title_label)
 
         # Spacer
-        toolbar.add_widget(MDBoxLayout())
+        toolbar_layout.add_widget(MDBoxLayout())
 
         # Action buttons
-        refresh_btn = MDFlatButton(text="Refresh", on_release=lambda x: self.refresh_memory())
-        clear_btn = MDFlatButton(text="Clear", on_release=lambda x: self.clear_memory())
+        add_btn = MDIconButton(icon="plus", on_release=self._show_add_dialog)
+        search_btn = MDIconButton(icon="magnify", on_release=self._toggle_search)
+        refresh_btn = MDIconButton(icon="refresh", on_release=self._refresh_memories)
+        
+        toolbar_layout.add_widget(add_btn)
+        toolbar_layout.add_widget(search_btn)
+        toolbar_layout.add_widget(refresh_btn)
 
-        toolbar.add_widget(refresh_btn)
-        toolbar.add_widget(clear_btn)
+        main_layout.add_widget(toolbar_layout)
 
-        # Content scroll view
-        scroll = MDScrollView()
-        content = MDBoxLayout(
-            orientation="vertical", padding=dp(20), spacing=dp(20), adaptive_height=True
-        )
-
-        # Overview section
-        overview_card = MDCard(
-            orientation="vertical",
-            padding=dp(20),
-            spacing=dp(10),
-            elevation=2,
-            md_bg_color=(0.08, 0.08, 0.08, 1),
-            adaptive_height=True,
-            radius=[dp(12)],
-        )
-
-        overview_title = MDLabel(
-            text="Memory System Overview",
-            theme_text_color="Primary",
-            font_style="H5",
-            adaptive_height=True,
-        )
-        overview_card.add_widget(overview_title)
-
-        overview_text = MDLabel(
-            text="Neuromancer uses a multi-layered memory architecture to provide contextual awareness and learning capabilities. Each memory type serves a specific purpose in maintaining conversation continuity and knowledge retention.",
-            theme_text_color="Secondary",
-            font_style="Body1",
-            adaptive_height=True,
-            text_size=(None, None),
-        )
-        overview_card.add_widget(overview_text)
-        content.add_widget(overview_card)
-
-        # Memory statistics cards
-        # Short-term memory
-        short_term_card = MemoryCard(
-            title="Short-Term Working Memory",
-            description="Stores the current conversation context and immediately relevant information.",
-            details="• Current conversation: 12 messages\n• Active context window: 4,096 tokens\n• Retention: Until conversation ends",
-            usage=35.5,
-            actions=[("View", self.view_short_term), ("Clear", self.clear_short_term)],
-        )
-        content.add_widget(short_term_card)
-
-        # Vector memory
-        vector_card = MemoryCard(
-            title="Vector Memory (ChromaDB)",
-            description="Semantic search database for finding similar conversations and knowledge.",
-            details="• 1,247 embedded documents\n• 384-dimensional vectors\n• Similarity threshold: 0.75",
-            usage=42.8,
-            actions=[("Search", self.search_vectors), ("Rebuild", self.rebuild_vectors)],
-        )
-        content.add_widget(vector_card)
-
-        # Long-term memory
-        long_term_card = MemoryCard(
-            title="Long-Term Persistent Memory",
-            description="Stores learned patterns, user preferences, and accumulated knowledge.",
-            details="• 89 user preferences stored\n• 156 learned patterns\n• Last updated: 2 hours ago",
-            usage=67.2,
-            actions=[("Export", self.export_long_term), ("Settings", self.configure_long_term)],
-        )
-        content.add_widget(long_term_card)
-
-        # Episodic memory
-        episodic_card = MemoryCard(
-            title="Episodic Conversation Memory",
-            description="Maintains detailed history of past conversations and interactions.",
-            details="• 34 conversation sessions\n• Total messages: 1,052\n• Average session length: 31 messages",
-            usage=58.3,
-            actions=[("Browse", self.browse_episodes), ("Archive", self.archive_old_episodes)],
-        )
-        content.add_widget(episodic_card)
-
-        # Global memory actions
-        actions_card = MDCard(
-            orientation="vertical",
-            padding=dp(20),
-            spacing=dp(15),
-            elevation=2,
-            md_bg_color=(0.1, 0.1, 0.1, 1),
-            adaptive_height=True,
-            radius=[dp(12)],
-        )
-
-        actions_title = MDLabel(
-            text="Memory Management Actions",
-            theme_text_color="Primary",
-            font_style="H6",
-            adaptive_height=True,
-        )
-        actions_card.add_widget(actions_title)
-
-        actions_layout = MDBoxLayout(
+        # Search bar (initially hidden)
+        self.search_layout = MDBoxLayout(
             orientation="horizontal",
-            spacing=dp(15),
-            adaptive_height=True,
             size_hint_y=None,
-            height=dp(50),
+            height=0,
+            opacity=0,
+            padding=dp(16),
+            spacing=dp(8),
         )
 
-        export_btn = MDRaisedButton(
-            text="Export All", on_release=self.export_memory, md_bg_color=(0.2, 0.6, 1.0, 1.0)
+        self.search_field = MDTextField(
+            hint_text="Search memories...",
+            on_text=self._on_search_text,
         )
+        
+        clear_search_btn = MDIconButton(icon="close", on_release=self._clear_search)
 
-        import_btn = MDRaisedButton(
-            text="Import", on_release=self.import_memory, md_bg_color=(0.4, 0.8, 0.4, 1.0)
-        )
+        self.search_layout.add_widget(self.search_field)
+        self.search_layout.add_widget(clear_search_btn)
 
-        optimize_btn = MDRaisedButton(
-            text="Optimize All", on_release=self.optimize_memory, md_bg_color=(1.0, 0.6, 0.2, 1.0)
-        )
+        main_layout.add_widget(self.search_layout)
 
-        reset_btn = MDRaisedButton(
-            text="Reset All", on_release=self.reset_all_memory, md_bg_color=(0.8, 0.2, 0.2, 1.0)
-        )
-
-        actions_layout.add_widget(export_btn)
-        actions_layout.add_widget(import_btn)
-        actions_layout.add_widget(optimize_btn)
-        actions_layout.add_widget(reset_btn)
-
-        actions_card.add_widget(actions_layout)
-        content.add_widget(actions_card)
-
-        # Memory insights and status
-        insights_card = MDCard(
-            orientation="vertical",
-            padding=dp(20),
-            spacing=dp(15),
-            elevation=2,
-            md_bg_color=(0.08, 0.12, 0.08, 1),
-            adaptive_height=True,
-            radius=[dp(12)],
-        )
-
-        insights_title = MDLabel(
-            text="System Status & Insights",
-            theme_text_color="Primary",
-            font_style="H6",
-            adaptive_height=True,
-        )
-        insights_card.add_widget(insights_title)
-
-        # Status indicators
-        status_layout = MDBoxLayout(
+        # Filter chips
+        self.filter_layout = MDBoxLayout(
             orientation="horizontal",
-            spacing=dp(20),
-            adaptive_height=True,
             size_hint_y=None,
-            height=dp(80),
+            height=dp(40),
+            padding=dp(16),
+            spacing=dp(8),
         )
+        
+        # Add filter chips for memory types
+        all_chip = MDRaisedButton(
+            text="All", 
+            size_hint_x=None, 
+            width=dp(80),
+            height=dp(30),
+            md_bg_color=(0.2, 0.6, 0.8, 1),
+            on_release=lambda x: self._apply_filter(None)
+        )
+        self.filter_layout.add_widget(all_chip)
+        
+        for memory_type in MemoryType:
+            chip = MDRaisedButton(
+                text=memory_type.value.replace("_", " ").title(),
+                size_hint_x=None,
+                width=dp(100),
+                height=dp(30),
+                md_bg_color=(0.3, 0.3, 0.3, 1),
+                on_release=lambda x, mt=memory_type: self._apply_filter(mt)
+            )
+            self.filter_layout.add_widget(chip)
 
-        # Memory health
-        health_box = MDBoxLayout(orientation="vertical", adaptive_height=True)
-        health_label = MDLabel(
-            text="Memory Health",
+        main_layout.add_widget(self.filter_layout)
+
+        # Memory count
+        self.count_label = MDLabel(
+            text="Loading memories...",
             theme_text_color="Secondary",
             font_style="Caption",
-            adaptive_height=True,
+            size_hint_y=None,
+            height=dp(30),
+            padding=dp(16),
         )
-        health_value = MDLabel(
-            text="89%",
-            theme_text_color="Custom",
-            text_color=(0.2, 0.8, 0.4, 1.0),
-            font_style="H4",
-            adaptive_height=True,
+        main_layout.add_widget(self.count_label)
+
+        # Memories list
+        self.memories_scroll = MDScrollView()
+        self.memories_list = MDBoxLayout(
+            orientation="vertical", 
+            spacing=dp(8), 
+            padding=dp(16), 
+            adaptive_height=True
         )
-        health_box.add_widget(health_value)
-        health_box.add_widget(health_label)
-        status_layout.add_widget(health_box)
-
-        # Total storage
-        storage_box = MDBoxLayout(orientation="vertical", adaptive_height=True)
-        storage_label = MDLabel(
-            text="Storage Used",
-            theme_text_color="Secondary",
-            font_style="Caption",
-            adaptive_height=True,
-        )
-        storage_value = MDLabel(
-            text="45.7 MB", theme_text_color="Primary", font_style="H4", adaptive_height=True
-        )
-        storage_box.add_widget(storage_value)
-        storage_box.add_widget(storage_label)
-        status_layout.add_widget(storage_box)
-
-        # Last optimization
-        opt_box = MDBoxLayout(orientation="vertical", adaptive_height=True)
-        opt_label = MDLabel(
-            text="Last Optimized",
-            theme_text_color="Secondary",
-            font_style="Caption",
-            adaptive_height=True,
-        )
-        opt_value = MDLabel(
-            text="2 days ago", theme_text_color="Primary", font_style="H4", adaptive_height=True
-        )
-        opt_box.add_widget(opt_value)
-        opt_box.add_widget(opt_label)
-        status_layout.add_widget(opt_box)
-
-        insights_card.add_widget(status_layout)
-
-        # Recommendations
-        recommendations = MDLabel(
-            text="[INSIGHTS] Recommendations:\n"
-            "• Memory health is good (89%)\n"
-            "• Consider running optimization for better performance\n"
-            "• Vector database could benefit from reindexing\n"
-            "• Enable auto-optimization for maintenance",
-            theme_text_color="Secondary",
-            font_style="Body2",
-            adaptive_height=True,
-            text_size=(None, None),
-        )
-        insights_card.add_widget(recommendations)
-
-        content.add_widget(insights_card)
-
-        scroll.add_widget(content)
-
-        # Add to main layout
-        main_layout.add_widget(toolbar)
-        main_layout.add_widget(scroll)
+        self.memories_scroll.add_widget(self.memories_list)
+        main_layout.add_widget(self.memories_scroll)
 
         self.add_widget(main_layout)
 
-    def go_back(self):
+    def _memory_error_callback(self, operation: str, error: str):
+        """Handle memory operation errors."""
+        logger.error(f"Memory operation failed - {operation}: {error}")
+        Notification.error(f"Memory error: {operation}")
+
+    def _go_back(self, *args):
         """Navigate back to chat screen."""
         self.manager.current = "enhanced_chat"
 
-    def refresh_memory(self):
-        """Refresh memory statistics."""
-        logger.info("Refreshing memory statistics")
-        from src.gui.utils.notifications import Notification
+    def _load_memories(self, dt):
+        """Load memories asynchronously."""
+        def run_async():
+            try:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                loop.run_until_complete(self._load_memories_async())
+            except Exception as e:
+                logger.error(f"Failed to load memories: {e}")
+                Clock.schedule_once(lambda dt: Notification.error("Failed to load memories"), 0)
+            finally:
+                loop.close()
 
-        Notification.info("Refreshing memory statistics...")
+        thread = threading.Thread(target=run_async)
+        thread.daemon = True
+        thread.start()
 
-        # Re-build the UI to refresh all stats
-        self.clear_widgets()
-        self.build_ui()
+    async def _load_memories_async(self):
+        """Load all memories from the memory system."""
+        try:
+            all_memories = []
+            # Load memories of all types using a wildcard query with very low threshold
+            for memory_type in MemoryType:
+                memories = await self.safe_memory.safe_recall(
+                    query="*", memory_types=[memory_type], limit=1000, threshold=0.0
+                )
+                all_memories.extend(memories)
+            
+            # If that doesn't work, try using the manager directly
+            if not all_memories:
+                try:
+                    # Get stats to see if there are any memories at all
+                    stats = await self.safe_memory.safe_get_stats()
+                    if stats.get("total", 0) > 0:
+                        # Fallback: try getting memories with a simple word that might match anything
+                        for memory_type in MemoryType:
+                            memories = await self.safe_memory.safe_recall(
+                                query="the", memory_types=[memory_type], limit=1000, threshold=0.1
+                            )
+                            all_memories.extend(memories)
+                except Exception as e:
+                    logger.warning(f"Fallback memory loading failed: {e}")
+            
+            # Sort by creation date (newest first)
+            all_memories.sort(key=lambda m: m.created_at, reverse=True)
+            
+            # Update UI on main thread
+            Clock.schedule_once(lambda dt: self._update_memories_list(all_memories), 0)
+            
+        except Exception as e:
+            logger.error(f"Failed to load memories: {e}")
+            Clock.schedule_once(lambda dt: Notification.error("Failed to load memories"), 0)
 
-        Notification.success("Memory statistics refreshed!")
+    def _update_memories_list(self, memories):
+        """Update the memories list in the UI."""
+        self.memories = memories
+        self.filtered_memories = memories.copy()
+        self._refresh_list_display()
+        
+        # Update count
+        if len(memories) == 0:
+            self.count_label.text = "No memories found. Click + to add your first memory!"
+        else:
+            self.count_label.text = f"Showing {len(memories)} memories"
+        
+        logger.info(f"Loaded {len(memories)} memories")
 
-    def clear_memory(self):
-        """Clear selected memory."""
-        logger.info("Clearing memory")
-        from kivymd.uix.button import MDFlatButton
-        from kivymd.uix.dialog import MDDialog
+    def _refresh_list_display(self):
+        """Refresh the visual list display."""
+        self.memories_list.clear_widgets()
+        
+        if not self.filtered_memories:
+            # Show empty state
+            empty_card = MDCard(
+                orientation="vertical",
+                size_hint_y=None,
+                height=dp(120),
+                padding=dp(20),
+                spacing=dp(10),
+                elevation=1,
+                md_bg_color=(0.08, 0.08, 0.10, 1),
+                radius=[dp(12)]
+            )
+            
+            empty_icon = MDLabel(
+                text="🧠",
+                font_size="48sp",
+                theme_text_color="Secondary",
+                size_hint_y=None,
+                height=dp(60),
+                halign="center"
+            )
+            empty_card.add_widget(empty_icon)
+            
+            empty_text = MDLabel(
+                text="No memories to display.\nClick the + button above to add your first memory!",
+                theme_text_color="Secondary",
+                font_style="Body2",
+                adaptive_height=True,
+                halign="center"
+            )
+            empty_card.add_widget(empty_text)
+            
+            self.memories_list.add_widget(empty_card)
+        else:
+            # Show memory items
+            for memory in self.filtered_memories:
+                item = MemoryListItem(
+                    memory=memory,
+                    on_edit=self._edit_memory,
+                    on_delete=self._confirm_delete_memory
+                )
+                self.memories_list.add_widget(item)
 
-        # Create confirmation dialog
+    def _apply_filter(self, memory_type: MemoryType | None):
+        """Apply memory type filter."""
+        self.current_filter = memory_type
+        
+        # Update button colors
+        for child in self.filter_layout.children:
+            if hasattr(child, 'md_bg_color'):
+                child.md_bg_color = (0.3, 0.3, 0.3, 1)
+        
+        # Highlight selected filter
+        if memory_type is None:
+            self.filter_layout.children[-1].md_bg_color = (0.2, 0.6, 0.8, 1)  # "All" button
+            self.filtered_memories = self.memories.copy()
+        else:
+            # Find and highlight the correct button
+            for i, child in enumerate(self.filter_layout.children[:-1]):  # Skip "All" button
+                if hasattr(child, 'text') and memory_type.value.replace("_", " ").title() in child.text:
+                    child.md_bg_color = (0.2, 0.6, 0.8, 1)
+                    break
+            
+            self.filtered_memories = [m for m in self.memories if m.memory_type == memory_type]
+        
+        # Apply search if active
+        if self.search_query:
+            self._filter_by_search()
+        
+        self._refresh_list_display()
+        self.count_label.text = f"Showing {len(self.filtered_memories)} memories"
+
+    def _toggle_search(self, *args):
+        """Toggle search bar visibility."""
+        if self.search_layout.height == 0:
+            # Show search
+            from kivy.animation import Animation
+            anim = Animation(height=dp(60), opacity=1, duration=0.3)
+            anim.start(self.search_layout)
+            self.search_field.focus = True
+        else:
+            # Hide search
+            from kivy.animation import Animation
+            anim = Animation(height=0, opacity=0, duration=0.3)
+            anim.start(self.search_layout)
+            self._clear_search()
+
+    def _on_search_text(self, instance, text):
+        """Handle search text changes."""
+        self.search_query = text.strip().lower()
+        if self.search_query:
+            Clock.unschedule(self._filter_by_search)
+            Clock.schedule_once(lambda dt: self._filter_by_search(), 0.5)
+        else:
+            self._clear_search()
+
+    def _filter_by_search(self):
+        """Filter memories by search query."""
+        if not self.search_query:
+            return
+            
+        base_memories = (
+            [m for m in self.memories if m.memory_type == self.current_filter] 
+            if self.current_filter else self.memories
+        )
+        
+        self.filtered_memories = [
+            memory for memory in base_memories
+            if (
+                self.search_query in memory.content.lower()
+                or self.search_query in memory.memory_type.value.lower()
+                or any(self.search_query in str(v).lower() for v in memory.metadata.values())
+            )
+        ]
+        
+        self._refresh_list_display()
+        self.count_label.text = f"Found {len(self.filtered_memories)} matching memories"
+
+    def _clear_search(self, *args):
+        """Clear search and show filtered memories."""
+        self.search_query = ""
+        self.search_field.text = ""
+        self._apply_filter(self.current_filter)
+
+    def _refresh_memories(self, *args):
+        """Refresh memories from database."""
+        Notification.info("Refreshing memories...")
+        self._load_memories(None)
+
+    def _show_add_dialog(self, *args):
+        """Show dialog to add new memory."""
+        content = MDBoxLayout(
+            orientation="vertical", spacing=dp(15), size_hint_y=None, height=dp(350)
+        )
+
+        # Content field
+        self.add_content_field = MDTextField(
+            hint_text="Enter memory content...",
+            multiline=True,
+            size_hint_y=None,
+            height=dp(100),
+        )
+        content.add_widget(self.add_content_field)
+
+        # Memory type selection
+        type_label = MDLabel(text="Memory Type:", size_hint_y=None, height=dp(30))
+        content.add_widget(type_label)
+
+        type_layout = MDBoxLayout(orientation="horizontal", size_hint_y=None, height=dp(40), spacing=dp(10))
+        
+        self.add_type_buttons = []
+        for memory_type in MemoryType:
+            btn = MDRaisedButton(
+                text=memory_type.value.replace("_", " ").title(),
+                size_hint_x=0.25,
+                md_bg_color=(0.2, 0.6, 0.8, 1) if memory_type == MemoryType.LONG_TERM else (0.3, 0.3, 0.3, 1),
+                on_release=lambda x, t=memory_type: self._select_add_type(t),
+            )
+            self.add_type_buttons.append((btn, memory_type))
+            type_layout.add_widget(btn)
+        
+        content.add_widget(type_layout)
+
+        # Importance slider
+        importance_label = MDLabel(text="Importance: 0.7", size_hint_y=None, height=dp(30))
+        content.add_widget(importance_label)
+
+        self.add_importance_slider = MDSlider(
+            min=0.0, max=1.0, value=0.7, step=0.1, size_hint_y=None, height=dp(40)
+        )
+        self.add_importance_slider.bind(
+            value=lambda x, v: setattr(importance_label, "text", f"Importance: {v:.1f}")
+        )
+        content.add_widget(self.add_importance_slider)
+
+        # Tags field
+        self.add_tags_field = MDTextField(
+            hint_text="Tags (comma-separated, optional)",
+            size_hint_y=None,
+            height=dp(40),
+        )
+        content.add_widget(self.add_tags_field)
+
+        self.selected_add_type = MemoryType.LONG_TERM
+
         dialog = MDDialog(
-            title="Clear All Memory?",
-            text="This will permanently delete all stored memories. This action cannot be undone. Are you sure?",
+            title="Add New Memory",
+            type="custom",
+            content_cls=content,
+            size_hint=(0.9, None),
+            height=dp(450),
             buttons=[
-                MDFlatButton(text="Cancel", on_release=lambda x: dialog.dismiss()),
-                MDFlatButton(
-                    text="Clear All", on_release=lambda x: self._perform_memory_clear(dialog)
+                MDRaisedButton(text="Cancel", on_release=lambda x: dialog.dismiss()),
+                MDRaisedButton(
+                    text="Add Memory",
+                    md_bg_color=(0.2, 0.8, 0.4, 1),
+                    on_release=lambda x: self._create_memory(dialog),
                 ),
             ],
         )
         dialog.open()
 
-    def _perform_memory_clear(self, dialog):
-        """Actually clear the memory after confirmation."""
+    def _select_add_type(self, memory_type: MemoryType):
+        """Select memory type for new memory."""
+        self.selected_add_type = memory_type
+        for btn, btn_type in self.add_type_buttons:
+            btn.md_bg_color = (0.2, 0.6, 0.8, 1) if btn_type == memory_type else (0.3, 0.3, 0.3, 1)
+
+    def _create_memory(self, dialog):
+        """Create a new memory."""
+        content = self.add_content_field.text.strip()
+        if not content:
+            Notification.error("Memory content cannot be empty")
+            return
+
         dialog.dismiss()
-        from src.gui.utils.notifications import Notification
+        
+        importance = self.add_importance_slider.value
+        tags = [t.strip() for t in self.add_tags_field.text.split(",") if t.strip()]
+        
+        def run_create():
+            try:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                loop.run_until_complete(self._create_memory_async(content, importance, tags))
+            except Exception as e:
+                logger.error(f"Failed to create memory: {e}")
+                Clock.schedule_once(lambda dt: Notification.error("Failed to create memory"), 0)
+            finally:
+                loop.close()
 
+        thread = threading.Thread(target=run_create)
+        thread.daemon = True
+        thread.start()
+
+    async def _create_memory_async(self, content: str, importance: float, tags: list):
+        """Create memory asynchronously."""
         try:
-            # Clear ChromaDB collections
-            import shutil
-            from pathlib import Path
+            metadata = {
+                "created_manually": True,
+                "source": "memory_management",
+                "created_at": datetime.now().isoformat()
+            }
+            
+            if tags:
+                metadata["tags"] = tags
 
-            chromadb_path = Path("./data/chromadb")
-            if chromadb_path.exists():
-                shutil.rmtree(chromadb_path)
-                chromadb_path.mkdir(parents=True, exist_ok=True)
-
-            # Refresh the UI
-            self.refresh_memory()
-
-            Notification.success("All memory has been cleared!")
-        except Exception as e:
-            logger.error(f"Failed to clear memory: {e}")
-            Notification.error("Failed to clear memory")
-
-    # Individual memory type actions
-    def view_short_term(self, *args):
-        """View short-term memory contents."""
-        from kivymd.uix.boxlayout import MDBoxLayout
-        from kivymd.uix.button import MDFlatButton
-        from kivymd.uix.dialog import MDDialog
-        from kivymd.uix.label import MDLabel
-
-        # Create content
-        content = MDBoxLayout(
-            orientation="vertical", spacing=dp(10), size_hint_y=None, height=dp(300)
-        )
-
-        content.add_widget(
-            MDLabel(text="Short-Term Memory Status", font_style="H6", adaptive_height=True)
-        )
-
-        content.add_widget(
-            MDLabel(
-                text="Short-term memory stores recent conversation context and temporary data.\n\n"
-                "• Active conversations: 1\n"
-                "• Recent messages: Last 20 stored\n"
-                "• Context window: 4096 tokens\n"
-                "• Auto-cleanup: After 24 hours",
-                theme_text_color="Secondary",
-                adaptive_height=True,
+            memory_id = await self.safe_memory.safe_remember(
+                content=content,
+                memory_type=self.selected_add_type,
+                importance=importance,
+                metadata=metadata
             )
-        )
 
-        dialog = MDDialog(
-            title="Short-Term Memory",
-            type="custom",
-            content_cls=content,
-            buttons=[MDFlatButton(text="Close", on_release=lambda x: dialog.dismiss())],
-        )
-        dialog.open()
-
-    def clear_short_term(self, *args):
-        """Clear short-term memory."""
-        from src.gui.utils.notifications import Notification
-
-        Notification.success("Short-term memory cleared")
-
-    def search_vectors(self, *args):
-        """Search vector database."""
-        from kivymd.uix.boxlayout import MDBoxLayout
-        from kivymd.uix.button import MDFlatButton, MDRaisedButton
-        from kivymd.uix.dialog import MDDialog
-        from kivymd.uix.label import MDLabel
-        from kivymd.uix.textfield import MDTextField
-
-        from src.gui.utils.notifications import Notification
-
-        # Create search dialog
-        content = MDBoxLayout(
-            orientation="vertical", spacing=dp(15), size_hint_y=None, height=dp(400)
-        )
-
-        # Search input
-        search_field = MDTextField(
-            hint_text="Enter search query...",
-            helper_text="Search through all stored memories using semantic similarity",
-            helper_text_mode="persistent",
-        )
-        content.add_widget(search_field)
-
-        # Results area
-        results_label = MDLabel(
-            text="Results will appear here...", theme_text_color="Secondary", adaptive_height=True
-        )
-        content.add_widget(results_label)
-
-        def perform_search(widget):
-            query = search_field.text.strip()
-            if query:
-                results_label.text = f"Searching for: '{query}'\n\n"
-                results_label.text += "Results:\n"
-                results_label.text += "• Found 3 relevant memories\n"
-                results_label.text += f"• Best match: Previous conversation about '{query}'\n"
-                results_label.text += "• Similarity score: 0.89\n"
-                Notification.success(f"Search completed for '{query}'")
+            if memory_id:
+                # Reload memories
+                await self._load_memories_async()
+                Clock.schedule_once(
+                    lambda dt: Notification.success(f"Memory created: {memory_id[:8]}..."), 0
+                )
             else:
-                Notification.warning("Please enter a search query")
+                Clock.schedule_once(lambda dt: Notification.error("Failed to create memory"), 0)
 
-        # Search button
-        search_btn = MDRaisedButton(
-            text="Search Memories", on_release=perform_search, pos_hint={"center_x": 0.5}
+        except Exception as e:
+            logger.error(f"Memory creation error: {e}")
+            Clock.schedule_once(lambda dt: Notification.error("Memory creation failed"), 0)
+
+    def _edit_memory(self, memory: Memory):
+        """Edit an existing memory."""
+        content = MDBoxLayout(
+            orientation="vertical", spacing=dp(15), size_hint_y=None, height=dp(300)
         )
-        content.add_widget(search_btn)
+
+        # Content field
+        self.edit_content_field = MDTextField(
+            text=memory.content,
+            multiline=True,
+            size_hint_y=None,
+            height=dp(100),
+        )
+        content.add_widget(self.edit_content_field)
+
+        # Memory type selection
+        type_label = MDLabel(text="Memory Type:", size_hint_y=None, height=dp(30))
+        content.add_widget(type_label)
+
+        type_layout = MDBoxLayout(orientation="horizontal", size_hint_y=None, height=dp(40), spacing=dp(10))
+        
+        self.edit_type_buttons = []
+        for memory_type in MemoryType:
+            btn = MDRaisedButton(
+                text=memory_type.value.replace("_", " ").title(),
+                size_hint_x=0.25,
+                md_bg_color=(0.2, 0.6, 0.8, 1) if memory_type == memory.memory_type else (0.3, 0.3, 0.3, 1),
+                on_release=lambda x, t=memory_type: self._select_edit_type(t),
+            )
+            self.edit_type_buttons.append((btn, memory_type))
+            type_layout.add_widget(btn)
+        
+        content.add_widget(type_layout)
+
+        # Importance slider
+        importance_label = MDLabel(text=f"Importance: {memory.importance:.1f}", size_hint_y=None, height=dp(30))
+        content.add_widget(importance_label)
+
+        self.edit_importance_slider = MDSlider(
+            min=0.0, max=1.0, value=memory.importance, step=0.1, size_hint_y=None, height=dp(40)
+        )
+        self.edit_importance_slider.bind(
+            value=lambda x, v: setattr(importance_label, "text", f"Importance: {v:.1f}")
+        )
+        content.add_widget(self.edit_importance_slider)
+
+        self.selected_edit_type = memory.memory_type
 
         dialog = MDDialog(
-            title="Vector Memory Search",
+            title="Edit Memory",
             type="custom",
             content_cls=content,
-            buttons=[MDFlatButton(text="Close", on_release=lambda x: dialog.dismiss())],
             size_hint=(0.9, None),
-            height=dp(500),
+            height=dp(400),
+            buttons=[
+                MDRaisedButton(text="Cancel", on_release=lambda x: dialog.dismiss()),
+                MDRaisedButton(
+                    text="Save Changes",
+                    md_bg_color=(0.2, 0.8, 0.4, 1),
+                    on_release=lambda x: self._save_memory_changes(dialog, memory),
+                ),
+            ],
         )
         dialog.open()
 
-    def rebuild_vectors(self, *args):
-        """Rebuild vector database."""
-        from src.gui.utils.notifications import Notification
+    def _select_edit_type(self, memory_type: MemoryType):
+        """Select memory type for editing."""
+        self.selected_edit_type = memory_type
+        for btn, btn_type in self.edit_type_buttons:
+            btn.md_bg_color = (0.2, 0.6, 0.8, 1) if btn_type == memory_type else (0.3, 0.3, 0.3, 1)
 
-        Notification.info("Rebuilding vector database...")
+    def _save_memory_changes(self, dialog, memory: Memory):
+        """Save changes to memory."""
+        new_content = self.edit_content_field.text.strip()
+        if not new_content:
+            Notification.error("Memory content cannot be empty")
+            return
 
-    def export_long_term(self, *args):
-        """Export long-term memory."""
-        from src.gui.utils.notifications import Notification
+        dialog.dismiss()
+        
+        def run_update():
+            try:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                loop.run_until_complete(
+                    self._update_memory_async(memory, new_content, self.selected_edit_type, self.edit_importance_slider.value)
+                )
+            except Exception as e:
+                logger.error(f"Failed to update memory: {e}")
+                Clock.schedule_once(lambda dt: Notification.error("Failed to update memory"), 0)
+            finally:
+                loop.close()
 
-        Notification.info("Exporting long-term memory...")
+        thread = threading.Thread(target=run_update)
+        thread.daemon = True
+        thread.start()
 
-    def configure_long_term(self, *args):
-        """Configure long-term memory settings."""
-        from src.gui.utils.notifications import Notification
+    async def _update_memory_async(self, memory: Memory, new_content: str, new_type: MemoryType, new_importance: float):
+        """Update memory asynchronously."""
+        try:
+            # Update memory object
+            memory.content = new_content
+            memory.memory_type = new_type
+            memory.importance = new_importance
+            memory.accessed_at = datetime.now()
 
-        Notification.info("Long-term memory settings coming soon")
+            # Update in store
+            success = await self.safe_memory.manager.store.update(memory)
 
-    def browse_episodes(self, *args):
-        """Browse episodic memory."""
-        from src.gui.utils.notifications import Notification
+            if success:
+                # Reload memories
+                await self._load_memories_async()
+                Clock.schedule_once(
+                    lambda dt: Notification.success("Memory updated successfully"), 0
+                )
+            else:
+                Clock.schedule_once(lambda dt: Notification.error("Failed to update memory"), 0)
 
-        Notification.info("Episodic memory browser coming soon")
+        except Exception as e:
+            logger.error(f"Memory update error: {e}")
+            Clock.schedule_once(lambda dt: Notification.error("Memory update failed"), 0)
 
-    def archive_old_episodes(self, *args):
-        """Archive old episodes."""
-        from src.gui.utils.notifications import Notification
+    def _confirm_delete_memory(self, memory: Memory):
+        """Show confirmation dialog for deleting memory."""
+        content = MDBoxLayout(
+            orientation="vertical", spacing=dp(10), size_hint_y=None, height=dp(120)
+        )
 
-        Notification.info("Archiving old episodes...")
+        preview_text = memory.content[:100] + "..." if len(memory.content) > 100 else memory.content
+        preview_label = MDLabel(
+            text=f"Delete this memory?\n\n{preview_text}",
+            theme_text_color="Primary",
+            adaptive_height=True,
+        )
+        content.add_widget(preview_label)
 
-    # Global actions
-    def export_memory(self, *args):
-        """Export all memory to file."""
-        logger.info("Exporting all memory")
-        from src.gui.utils.notifications import Notification
+        warning_label = MDLabel(
+            text="This action cannot be undone.",
+            theme_text_color="Error",
+            adaptive_height=True,
+        )
+        content.add_widget(warning_label)
 
-        Notification.info("Exporting complete memory system...")
-        # TODO: Implement memory export
+        dialog = MDDialog(
+            title="Confirm Delete",
+            type="custom",
+            content_cls=content,
+            buttons=[
+                MDRaisedButton(text="Cancel", on_release=lambda x: dialog.dismiss()),
+                MDRaisedButton(
+                    text="Delete",
+                    md_bg_color=(0.8, 0.2, 0.2, 1),
+                    on_release=lambda x: self._delete_memory(dialog, memory),
+                ),
+            ],
+        )
+        dialog.open()
 
-    def import_memory(self, *args):
-        """Import memory from file."""
-        logger.info("Importing memory")
-        from src.gui.utils.notifications import Notification
+    def _delete_memory(self, dialog, memory: Memory):
+        """Delete a memory."""
+        dialog.dismiss()
+        
+        def run_delete():
+            try:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                loop.run_until_complete(self._delete_memory_async(memory))
+            except Exception as e:
+                logger.error(f"Failed to delete memory: {e}")
+                Clock.schedule_once(lambda dt: Notification.error("Failed to delete memory"), 0)
+            finally:
+                loop.close()
 
-        Notification.info("Memory import feature coming soon")
-        # TODO: Implement memory import
+        thread = threading.Thread(target=run_delete)
+        thread.daemon = True
+        thread.start()
 
-    def optimize_memory(self, *args):
-        """Optimize all memory storage."""
-        logger.info("Optimizing all memory")
-        from src.gui.utils.notifications import Notification
+    async def _delete_memory_async(self, memory: Memory):
+        """Delete memory asynchronously."""
+        try:
+            success = await self.safe_memory.safe_forget(memory.id)
+            
+            if success:
+                # Reload memories
+                await self._load_memories_async()
+                Clock.schedule_once(
+                    lambda dt: Notification.success("Memory deleted successfully"), 0
+                )
+            else:
+                Clock.schedule_once(lambda dt: Notification.error("Failed to delete memory"), 0)
 
-        Notification.info("Running memory optimization...")
-        # TODO: Implement memory optimization
-
-    def reset_all_memory(self, *args):
-        """Reset all memory systems."""
-        logger.info("Resetting all memory")
-        from src.gui.utils.notifications import Notification
-
-        Notification.warning("Memory reset requires confirmation")
-        # TODO: Implement memory reset with confirmation
+        except Exception as e:
+            logger.error(f"Memory deletion error: {e}")
+            Clock.schedule_once(lambda dt: Notification.error("Memory deletion failed"), 0)
