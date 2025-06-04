@@ -12,8 +12,9 @@ from kivymd.app import MDApp
 
 from src.core.config import config
 from src.gui.screens.enhanced_chat_screen import EnhancedChatScreen
+from src.gui.screens.file_management_screen import FileManagementScreen
 from src.gui.screens.memory_screen import MemoryScreen
-from src.gui.screens.provider_config_screen import ProviderConfigScreen
+from src.gui.screens.model_management_screen import ModelManagementScreen
 from src.gui.screens.settings_screen import SettingsScreen
 from src.gui.screens.simple_memory_screen import SimpleMemoryScreen
 from src.gui.screens.splash_screen import SplashScreen
@@ -212,7 +213,8 @@ class NeuromancerApp(MDApp):
             self.screen_manager.add_widget(SettingsScreen(name="settings"))
             self.screen_manager.add_widget(MemoryScreen(name="memory"))
             self.screen_manager.add_widget(SimpleMemoryScreen(name="advanced_memory"))
-            self.screen_manager.add_widget(ProviderConfigScreen(name="provider_config"))
+            self.screen_manager.add_widget(ModelManagementScreen(chat_manager=self._chat_manager, name="model_management"))
+            self.screen_manager.add_widget(FileManagementScreen(chat_manager=self._chat_manager, name="file_management"))
             # TODO: Fix MDSwitch compatibility issue in AdvancedSettingsScreen
             # self.screen_manager.add_widget(AdvancedSettingsScreen(name='advanced_settings'))
 

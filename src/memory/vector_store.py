@@ -444,6 +444,9 @@ class VectorMemoryStore(MemoryStore):
 
             # Determine which collections to query
             if memory_type:
+                if memory_type not in self.collections:
+                    logger.error(f"Memory type {memory_type} not found in collections")
+                    return []
                 collections_to_query = [(memory_type, self.collections[memory_type])]
             else:
                 collections_to_query = list(self.collections.items())
@@ -464,8 +467,8 @@ class VectorMemoryStore(MemoryStore):
 
                     if results and results.get("ids"):
                         for i, doc_id in enumerate(results["ids"]):
-                            if len(all_memories) >= limit + offset:
-                                break
+                            # Don't break early - we need to collect from all collections first
+                            # The final sorting and pagination will handle the limit
 
                             try:
                                 # Handle embeddings properly to avoid array evaluation errors
