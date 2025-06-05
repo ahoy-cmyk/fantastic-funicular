@@ -45,6 +45,7 @@ from src.core.model_manager import ModelManager
 from src.core.models import MessageRole
 from src.core.rag_system import RAGSystem, RAGConfig
 from src.core.session_manager import ConversationSession, SessionManager
+from src.mcp import MCPResponse, MCPTool
 from src.mcp.manager import MCPManager
 from src.memory import MemoryType
 from src.memory.manager import MemoryManager
@@ -127,6 +128,9 @@ class ChatManager:
         
         # Set provider reference for model manager
         self.model_manager.set_chat_manager(self)
+        
+        # Initialize MCP servers if configured
+        self._initialize_mcp_servers()
 
         # Session manager will be started on first use
 
@@ -195,6 +199,103 @@ class ChatManager:
             logger.warning(f"Failed to initialize LM Studio provider: {e}")
 
         logger.info(f"Initialized {len(self.providers)} LLM providers")
+
+    def _initialize_mcp_servers(self):
+        """Initialize MCP servers from configuration.
+        
+        Reads MCP server configurations and attempts to connect to each one
+        if auto_connect is enabled. Failures are logged but don't prevent
+        the chat manager from starting.
+        
+        Configuration Structure:
+            mcp.servers: {
+                "server_name": {
+                    "url": "ws://localhost:8080",
+                    "enabled": true,
+                    "description": "My MCP Server"
+                }
+            }
+        """
+        try:
+            from src.core.config import _config_manager
+            
+            # Check if MCP is enabled
+            if not _config_manager.get("mcp.enabled", True):
+                logger.info("MCP integration is disabled")
+                return
+                
+            # Get server configurations
+            servers = _config_manager.get("mcp.servers", {})
+            auto_connect = _config_manager.get("mcp.auto_connect", True)
+            
+            if not servers:
+                logger.info("No MCP servers configured")
+                return
+                
+            logger.info(f"Found {len(servers)} MCP server configurations")
+            
+            if auto_connect:
+                # Create a task to connect to servers asynchronously
+                import asyncio
+                asyncio.create_task(self._connect_mcp_servers(servers))
+            else:
+                logger.info("MCP auto-connect is disabled")
+                
+        except Exception as e:
+            logger.error(f"Failed to initialize MCP servers: {e}")
+    
+    async def _connect_mcp_servers(self, servers: dict[str, dict[str, Any]]):
+        """Connect to MCP servers asynchronously.
+        
+        Args:
+            servers: Dictionary of server configurations
+        """
+        from src.core.config import _config_manager
+        
+        # Get global SSL configuration
+        global_ssl_config = {
+            "verify": _config_manager.get("mcp.ssl_verify", True),
+            "ca_bundle": _config_manager.get("mcp.ssl_ca_bundle"),
+            "allow_self_signed": _config_manager.get("mcp.allow_self_signed", False)
+        }
+        
+        for name, config in servers.items():
+            try:
+                if not config.get("enabled", True):
+                    logger.info(f"MCP server '{name}' is disabled")
+                    continue
+                    
+                # Handle WebSocket servers
+                url = config.get("url")
+                command = config.get("command")
+                args = config.get("args", [])
+                
+                if url:
+                    # WebSocket MCP server
+                    # Merge server-specific SSL config with global config
+                    ssl_config = global_ssl_config.copy()
+                    if "ssl" in config:
+                        ssl_config.update(config["ssl"])
+                        
+                    logger.info(f"Connecting to MCP WebSocket server '{name}' at {url}")
+                    success = await self.mcp_manager.add_server(name, server_url=url, ssl_config=ssl_config)
+                    
+                elif command:
+                    # Subprocess MCP server
+                    logger.info(f"Connecting to MCP subprocess server '{name}': {command} {' '.join(args)}")
+                    success = await self.mcp_manager.add_server(name, command=command, args=args)
+                    
+                else:
+                    logger.warning(f"MCP server '{name}' missing both URL and command")
+                    continue
+                
+                if success:
+                    logger.info(f"Successfully connected to MCP server '{name}'")
+                else:
+                    logger.warning(f"Failed to connect to MCP server '{name}'")
+                    
+            except Exception as e:
+                logger.error(f"Error connecting to MCP server '{name}': {e}")
 
     def _load_system_prompt_config(self):
         """Load system prompt configuration.
@@ -1316,6 +1417,166 @@ class ChatManager:
             - txt: Plain text transcript
         """
         return await self.session_manager.export_conversation(conversation_id, format)
+
+    # MCP Tool Methods
+    # These methods provide access to Model Context Protocol tools,
+    # enabling the AI to execute external functions and integrations.
+    
+    async def list_mcp_servers(self) -> list[dict[str, Any]]:
+        """List all connected MCP servers.
+        
+        Returns:
+            List of server information including name, URL, connection status,
+            and number of available tools.
+        """
+        return await self.mcp_manager.list_servers()
+    
+    async def list_mcp_tools(self) -> list[MCPTool]:
+        """List all available MCP tools from all servers.
+        
+        Returns:
+            List of MCPTool objects with full tool information including
+            names, descriptions, parameters, and server prefixes.
+        """
+        return await self.mcp_manager.list_all_tools()
+    
+    async def execute_mcp_tool(self, tool_name: str, parameters: dict[str, Any]) -> MCPResponse:
+        """Execute an MCP tool.
+        
+        Args:
+            tool_name: Name of the tool in format 'server:tool'
+            parameters: Tool parameters as a dictionary
+        
+        Returns:
+            MCPResponse with execution result or error information
+        
+        Example:
+            ```python
+            response = await chat_manager.execute_mcp_tool(
+                "filesystem:read_file",
+                {"path": "/tmp/data.txt"}
+            )
+            if response.success:
+                print(response.result)
+            ```
+        """
+        return await self.mcp_manager.execute_tool(tool_name, parameters)
+    
+    async def add_mcp_server(self, name: str, server_url: str = None, ssl_config: dict[str, Any] = None,
+                             command: str = None, args: list[str] = None) -> bool:
+        """Add and connect to a new MCP server.
+        
+        Args:
+            name: Unique name for the server
+            server_url: WebSocket URL of the MCP server (for WebSocket servers)
+            ssl_config: Optional SSL configuration for secure connections
+            command: Command to execute (for subprocess servers)
+            args: Arguments for the command (for subprocess servers)
+        
+        Returns:
+            True if successfully connected
+        """
+        # If no SSL config provided, use defaults from configuration
+        if ssl_config is None and server_url:
+            from src.core.config import _config_manager
+            ssl_config = {
+                "verify": _config_manager.get("mcp.ssl_verify", True),
+                "ca_bundle": _config_manager.get("mcp.ssl_ca_bundle"),
+                "allow_self_signed": _config_manager.get("mcp.allow_self_signed", False)
+            }
+        
+        success = await self.mcp_manager.add_server(name, server_url=server_url, ssl_config=ssl_config,
+                                                     command=command, args=args)
+        
+        # Save to configuration if successful
+        if success:
+            await self._save_mcp_server_to_config(name, server_url, ssl_config, command, args)
+        
+        return success
+    
+    async def _save_mcp_server_to_config(self, name: str, server_url: str = None, 
+                                         ssl_config: dict = None, command: str = None, 
+                                         args: list[str] = None):
+        """Save MCP server configuration to persistent config."""
+        try:
+            from src.core.config import _config_manager
+            
+            # Get current MCP servers configuration
+            servers = _config_manager.get("mcp.servers", {})
+            
+            # Build server config
+            server_config = {
+                "enabled": True,
+                "description": f"MCP server: {name}"
+            }
+            
+            if server_url:
+                # WebSocket server
+                server_config["url"] = server_url
+                if ssl_config:
+                    server_config["ssl"] = ssl_config
+            elif command and args:
+                # Subprocess server
+                server_config["command"] = command
+                server_config["args"] = args
+            
+            # Add to servers
+            servers[name] = server_config
+            
+            # Save back to config
+            _config_manager.set("mcp.servers", servers)
+            _config_manager.save()
+            
+            logger.info(f"Saved MCP server '{name}' to configuration")
+            
+        except Exception as e:
+            logger.error(f"Failed to save MCP server '{name}' to config: {e}")
+    
+    async def remove_mcp_server(self, name: str) -> bool:
+        """Disconnect and remove an MCP server.
+        
+        Args:
+            name: Name of the server to remove
+        
+        Returns:
+            True if successfully removed
+        """
+        success = await self.mcp_manager.remove_server(name)
+        
+        # Remove from configuration if successful
+        if success:
+            await self._remove_mcp_server_from_config(name)
+        
+        return success
+    
+    async def _remove_mcp_server_from_config(self, name: str):
+        """Remove MCP server from persistent config."""
+        try:
+            from src.core.config import _config_manager
+            
+            # Get current MCP servers configuration
+            servers = _config_manager.get("mcp.servers", {})
+            
+            # Remove server if it exists
+            if name in servers:
+                del servers[name]
+                
+                # Save back to config
+                _config_manager.set("mcp.servers", servers)
+                _config_manager.save()
+                
+                logger.info(f"Removed MCP server '{name}' from configuration")
+            
+        except Exception as e:
+            logger.error(f"Failed to remove MCP server '{name}' from config: {e}")
+    
+    async def check_mcp_health(self) -> dict[str, bool]:
+        """Check health status of all MCP servers.
+        
+        Returns:
+            Dictionary mapping server names to health status
+        """
+        return await self.mcp_manager.health_check_all()
 
     async def archive_conversation(self, conversation_id: str) -> bool:
         """Archive a conversation.

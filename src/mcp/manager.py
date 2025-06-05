@@ -5,6 +5,7 @@ from typing import Any
 
 from src.mcp import MCPResponse, MCPServer, MCPTool
 from src.mcp.client import MCPClient
+from src.mcp.subprocess_client import MCPSubprocessClient
 from src.utils.logger import setup_logger
 
 logger = setup_logger(__name__)
@@ -19,12 +20,16 @@ class MCPManager:
         self.tools_cache: dict[str, MCPTool] = {}
         self._lock = asyncio.Lock()
 
-    async def add_server(self, name: str, server_url: str) -> bool:
+    async def add_server(self, name: str, server_url: str = None, ssl_config: dict[str, Any] = None, 
+                         command: str = None, args: list[str] = None) -> bool:
         """Add and connect to an MCP server.
 
         Args:
             name: Unique name for the server
-            server_url: WebSocket URL of the server
+            server_url: WebSocket URL of the server (for WebSocket MCP servers)
+            ssl_config: Optional SSL configuration for secure connections
+            command: Command to execute (for subprocess MCP servers)
+            args: Arguments for the command (for subprocess MCP servers)
 
         Returns:
             True if successfully connected
@@ -35,8 +40,16 @@ class MCPManager:
                     logger.warning(f"Server '{name}' already exists")
                     return False
 
-                # Create client
-                client = MCPClient(server_url, name=f"neuromancer-{name}")
+                # Determine client type
+                if server_url:
+                    # WebSocket MCP server
+                    client = MCPClient(server_url, name=f"neuromancer-{name}", ssl_config=ssl_config)
+                elif command and args:
+                    # Subprocess MCP server
+                    client = MCPSubprocessClient(command, args, name=f"neuromancer-{name}")
+                else:
+                    logger.error(f"Must provide either server_url or command+args for server '{name}'")
+                    return False
 
                 # Connect to server
                 if await client.connect():
@@ -105,10 +118,22 @@ class MCPManager:
             health = await server.health_check()
             tools = await server.list_tools()
 
+            # Get server info based on type
+            if hasattr(server, "server_url"):
+                server_info = getattr(server, "server_url", "Unknown")
+                server_type = "websocket"
+            elif hasattr(server, "command"):
+                server_info = f"{server.command} {' '.join(server.args)}"
+                server_type = "subprocess"
+            else:
+                server_info = "Unknown"
+                server_type = "unknown"
+
             servers.append(
                 {
                     "name": name,
-                    "url": getattr(server, "server_url", "Unknown"),
+                    "url": server_info,
+                    "type": server_type,
                     "connected": health,
                     "tool_count": len(tools),
                 }

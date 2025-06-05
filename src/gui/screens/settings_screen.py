@@ -177,9 +177,7 @@ class SettingsScreen(MDScreen):
     def _configure_mcp(self, dialog):
         """Configure MCP servers."""
         dialog.dismiss()
-        from src.gui.utils.notifications import Notification
-
-        Notification.info("MCP configuration would open here - feature can be added as needed")
+        self.manager.current = "mcp_management"
 
     def open_api_settings(self, *args):
         """Open API key settings."""
