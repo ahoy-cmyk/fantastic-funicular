@@ -633,10 +633,7 @@ class MemoryManager:
             return {"error": str(e)}
 
     async def get_all_memories(
-        self,
-        memory_type: MemoryType | None = None,
-        limit: int = 100,
-        offset: int = 0
+        self, memory_type: MemoryType | None = None, limit: int = 100, offset: int = 0
     ) -> list[Memory]:
         """Get all memories efficiently without vector search.
 
@@ -677,7 +674,7 @@ class MemoryManager:
             ```
         """
         try:
-            if hasattr(self.store, 'get_all_memories'):
+            if hasattr(self.store, "get_all_memories"):
                 # Use the efficient direct method if available
                 return await self.store.get_all_memories(memory_type, limit, offset)
             else:

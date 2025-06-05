@@ -408,10 +408,10 @@ class EnhancedChatScreen(MDScreen):
         # Add action buttons to toolbar
         self.toolbar.right_action_items = [
             ["chip", lambda x: self._go_to_model_management()],  # Model management
-            ["attachment", lambda x: self._show_file_upload()],   # File upload for RAG
-            ["folder", lambda x: self._go_to_file_management()], # File management
-            ["memory", lambda x: self._go_to_memory_screen()],   # Memory screen
-            ["cog", lambda x: self._go_to_settings()],          # Settings
+            ["attachment", lambda x: self._show_file_upload()],  # File upload for RAG
+            ["folder", lambda x: self._go_to_file_management()],  # File management
+            ["memory", lambda x: self._go_to_memory_screen()],  # Memory screen
+            ["cog", lambda x: self._go_to_settings()],  # Settings
         ]
 
         chat_content.add_widget(self.toolbar)
@@ -456,7 +456,15 @@ class EnhancedChatScreen(MDScreen):
             text="Send", size_hint_x=None, width=dp(80), on_release=self._send_message_wrapper
         )
 
+        # Add MCP tools test button
+        tools_btn = MDIconButton(
+            icon="tools",
+            tooltip_text="Test MCP Tools",
+            on_release=self._show_tools_dialog,
+        )
+
         input_layout.add_widget(self.message_input)
+        input_layout.add_widget(tools_btn)
         input_layout.add_widget(send_btn)
         chat_content.add_widget(input_layout)
 
@@ -479,9 +487,9 @@ class EnhancedChatScreen(MDScreen):
             # Ensure drawer is properly closed and positioned
             self.nav_drawer.set_state("close", animation=False)
             # Trigger layout update using public methods instead of private _update_pos
-            if hasattr(self.nav_drawer, 'trigger_layout'):
+            if hasattr(self.nav_drawer, "trigger_layout"):
                 self.nav_drawer.trigger_layout()
-            elif hasattr(self.nav_drawer, '_trigger_layout'):
+            elif hasattr(self.nav_drawer, "_trigger_layout"):
                 self.nav_drawer._trigger_layout()
             else:
                 # Fallback - just ensure it's closed
@@ -834,7 +842,9 @@ class EnhancedChatScreen(MDScreen):
             chunk_count = 0
             try:
                 # Use RAG-enhanced messaging for better context with uploaded files
-                async for chunk in self.chat_manager.send_message_with_rag(message_text, stream=True):
+                async for chunk in self.chat_manager.send_message_with_rag(
+                    message_text, stream=True
+                ):
                     # Check for shutdown during streaming
                     if self._is_shutting_down:
                         logger.info("Stopping message streaming - app is shutting down")
@@ -1121,16 +1131,20 @@ class EnhancedChatScreen(MDScreen):
             font_style="Subtitle2",
             theme_text_color="Primary",
             adaptive_height=True,
-            bold=True
+            bold=True,
         )
 
         # RAG status label
-        rag_status = "RAG: Enabled" if getattr(self.chat_manager, 'rag_enabled', True) else "RAG: Disabled"
+        rag_status = (
+            "RAG: Enabled" if getattr(self.chat_manager, "rag_enabled", True) else "RAG: Disabled"
+        )
         self.rag_status_label = MDLabel(
             text=rag_status,
             font_style="Caption",
-            theme_text_color="Primary" if getattr(self.chat_manager, 'rag_enabled', True) else "Secondary",
-            adaptive_height=True
+            theme_text_color=(
+                "Primary" if getattr(self.chat_manager, "rag_enabled", True) else "Secondary"
+            ),
+            adaptive_height=True,
         )
 
         info_layout.add_widget(self.current_model_label)
@@ -1142,7 +1156,7 @@ class EnhancedChatScreen(MDScreen):
             spacing=dp(5),
             adaptive_height=True,
             size_hint_x=None,
-            width=dp(120)
+            width=dp(120),
         )
 
         # Switch model button
@@ -1150,7 +1164,7 @@ class EnhancedChatScreen(MDScreen):
             icon="swap-horizontal",
             on_release=lambda x: self._go_to_model_management(),
             theme_icon_color="Custom",
-            icon_color=THEME_COLORS.get("primary", [0.2, 0.6, 1, 1])
+            icon_color=THEME_COLORS.get("primary", [0.2, 0.6, 1, 1]),
         )
 
         # Refresh model info button
@@ -1158,7 +1172,7 @@ class EnhancedChatScreen(MDScreen):
             icon="refresh",
             on_release=lambda x: self._refresh_model_status(),
             theme_icon_color="Custom",
-            icon_color=THEME_COLORS.get("primary", [0.2, 0.6, 1, 1])
+            icon_color=THEME_COLORS.get("primary", [0.2, 0.6, 1, 1]),
         )
 
         actions_layout.add_widget(switch_button)
@@ -1205,13 +1219,13 @@ class EnhancedChatScreen(MDScreen):
             self.current_model_label.text = f"Model: {model_info}"
 
             # Update RAG status
-            rag_enabled = getattr(self.chat_manager, 'rag_enabled', True)
+            rag_enabled = getattr(self.chat_manager, "rag_enabled", True)
             rag_status = "RAG: Enabled" if rag_enabled else "RAG: Disabled"
             self.rag_status_label.text = rag_status
             self.rag_status_label.theme_text_color = "Primary" if rag_enabled else "Secondary"
 
             # Update toolbar title as well
-            if hasattr(self, 'toolbar'):
+            if hasattr(self, "toolbar"):
                 self.toolbar.title = f"Chat - {model_info}"
 
             logger.info(f"Refreshed model status: {model_info}, RAG: {rag_enabled}")
@@ -1271,6 +1285,7 @@ class EnhancedChatScreen(MDScreen):
 
     def _schedule_load_memory_stats(self, label):
         """Schedule the async memory stats loading in a thread-safe way."""
+
         def run_async_load():
             try:
                 loop = asyncio.new_event_loop()
@@ -1348,30 +1363,41 @@ class EnhancedChatScreen(MDScreen):
             self.file_manager = MDFileManager(
                 exit_manager=self.exit_file_manager,
                 select_path=self.select_file_path,
-                ext=['.txt', '.pdf', '.md', '.json', '.py', '.js', '.java', '.cpp', '.c', '.html', '.xml', '.csv', '.docx']
+                ext=[
+                    ".txt",
+                    ".pdf",
+                    ".md",
+                    ".json",
+                    ".py",
+                    ".js",
+                    ".java",
+                    ".cpp",
+                    ".c",
+                    ".html",
+                    ".xml",
+                    ".csv",
+                    ".docx",
+                ],
             )
-            self.file_manager.show('/')  # Start from root directory
+            self.file_manager.show("/")  # Start from root directory
 
         # Create file upload dialog
         content = MDBoxLayout(
-            orientation="vertical",
-            spacing=dp(10),
-            size_hint_y=None,
-            height=dp(200)
+            orientation="vertical", spacing=dp(10), size_hint_y=None, height=dp(200)
         )
 
         info_label = MDLabel(
             text="Upload a file to add its content to the RAG memory system.\n"
-                 "Supported formats: txt, pdf, md, json, py, js, java, cpp, c, html, xml, csv, docx",
+            "Supported formats: txt, pdf, md, json, py, js, java, cpp, c, html, xml, csv, docx",
             theme_text_color="Primary",
-            adaptive_height=True
+            adaptive_height=True,
         )
 
         browse_button = MDRaisedButton(
             text="Browse Files",
             size_hint_y=None,
             height=dp(40),
-            on_release=lambda x: (dialog.dismiss(), file_manager_open())
+            on_release=lambda x: (dialog.dismiss(), file_manager_open()),
         )
 
         content.add_widget(info_label)
@@ -1381,12 +1407,7 @@ class EnhancedChatScreen(MDScreen):
             title="Upload File for RAG",
             type="custom",
             content_cls=content,
-            buttons=[
-                MDFlatButton(
-                    text="Cancel",
-                    on_release=lambda x: dialog.dismiss()
-                )
-            ]
+            buttons=[MDFlatButton(text="Cancel", on_release=lambda x: dialog.dismiss())],
         )
 
         dialog.open()
@@ -1454,27 +1475,31 @@ class EnhancedChatScreen(MDScreen):
             try:
                 # Read file content
                 import os
+
                 file_size = os.path.getsize(path)
 
                 # Check file size (limit to 10MB)
                 if file_size > 10 * 1024 * 1024:
-                    Clock.schedule_once(lambda dt: Notification.warning("File too large (max 10MB)"), 0)
+                    Clock.schedule_once(
+                        lambda dt: Notification.warning("File too large (max 10MB)"), 0
+                    )
                     return
 
                 # Read file content based on extension
                 file_ext = os.path.splitext(path)[1].lower()
 
                 try:
-                    if file_ext == '.pdf':
+                    if file_ext == ".pdf":
                         # Extract text from PDF
                         from pypdf import PdfReader
+
                         reader = PdfReader(path)
                         content = ""
                         for page in reader.pages:
                             content += page.extract_text() + "\n"
                     else:
                         # Text-based files
-                        with open(path, encoding='utf-8') as f:
+                        with open(path, encoding="utf-8") as f:
                             content = f.read()
                 except Exception as e:
                     error_msg = f"Error reading file: {str(e)}"
@@ -1488,21 +1513,26 @@ class EnhancedChatScreen(MDScreen):
                     "file_name": file_name,
                     "file_path": path,
                     "file_size": file_size,
-                    "file_type": file_ext
+                    "file_type": file_ext,
                 }
 
                 # Add to memory system
                 memory_id = await self.chat_manager.memory_manager.remember(
                     content=f"File content from {file_name}:\n\n{content}",
                     auto_classify=True,
-                    metadata=metadata
+                    metadata=metadata,
                 )
 
                 if memory_id:
-                    Clock.schedule_once(lambda dt: Notification.success(f"File '{file_name}' added to RAG memory"), 0)
+                    Clock.schedule_once(
+                        lambda dt: Notification.success(f"File '{file_name}' added to RAG memory"),
+                        0,
+                    )
                     logger.info(f"Uploaded file to RAG: {file_name} ({file_size} bytes)")
                 else:
-                    Clock.schedule_once(lambda dt: Notification.error("Failed to add file to memory"), 0)
+                    Clock.schedule_once(
+                        lambda dt: Notification.error("Failed to add file to memory"), 0
+                    )
 
             except Exception as e:
                 error_msg = f"Upload failed: {str(e)}"
@@ -1541,6 +1571,7 @@ class EnhancedChatScreen(MDScreen):
         The pattern allows for complex async operations while
         maintaining UI responsiveness and thread safety.
         """
+
         def run_async_load():
             try:
                 # Create a new event loop for this thread
@@ -1700,9 +1731,7 @@ class EnhancedChatScreen(MDScreen):
                 except Exception as e:
                     error_msg = f"Failed to load conversation: {str(e)}"
                     logger.error(f"Failed to select conversation: {e}")
-                    Clock.schedule_once(
-                        lambda dt: Notification.error(error_msg), 0
-                    )
+                    Clock.schedule_once(lambda dt: Notification.error(error_msg), 0)
                     # Remove loading widget on error
                     Clock.schedule_once(
                         lambda dt: (
@@ -1959,6 +1988,7 @@ class EnhancedChatScreen(MDScreen):
         operations in the background.
         """
         try:
+
             def run_async_create():
                 try:
                     loop = asyncio.new_event_loop()
@@ -2241,8 +2271,10 @@ class EnhancedChatScreen(MDScreen):
 
             # Remove from chat list
             for widget in list(self.chat_list.children):
-                if (hasattr(widget, "conversation_data") and
-                    widget.conversation_data.get("id") == conversation_id):
+                if (
+                    hasattr(widget, "conversation_data")
+                    and widget.conversation_data.get("id") == conversation_id
+                ):
                     self.chat_list.remove_widget(widget)
                     break
 
@@ -2263,3 +2295,124 @@ class EnhancedChatScreen(MDScreen):
             logger.error(f"Failed to remove conversation from UI: {e}")
             Notification.error("Failed to update UI after deleting conversation")
 
+    def _show_tools_dialog(self, *args):
+        """Show dialog with available MCP tools and execute selected tool."""
+        from kivymd.uix.dialog import MDDialog
+        from kivymd.uix.button import MDRaisedButton, MDTextButton
+        from kivymd.uix.list import MDList, OneLineListItem
+        from kivymd.uix.boxlayout import MDBoxLayout
+        from kivymd.uix.textfield import MDTextField
+        import asyncio
+        import threading
+
+        def run_tools_dialog():
+            try:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                loop.run_until_complete(self._show_tools_dialog_async())
+                loop.close()
+            except Exception as e:
+                logger.error(f"Error in tools dialog: {e}")
+                from kivy.clock import Clock
+                Clock.schedule_once(
+                    lambda dt: Notification.error(f"Failed to load MCP tools: {e}"), 0
+                )
+
+        thread = threading.Thread(target=run_tools_dialog, daemon=True)
+        thread.start()
+
+    async def _show_tools_dialog_async(self):
+        """Async implementation of tools dialog."""
+        from kivy.clock import Clock
+
+        try:
+            # Get available tools
+            tools = await self.chat_manager.list_mcp_tools()
+            
+            def show_dialog(dt):
+                self._create_tools_dialog(tools)
+                
+            Clock.schedule_once(show_dialog, 0)
+            
+        except Exception as e:
+            logger.error(f"Failed to get MCP tools: {e}")
+            def show_error(dt):
+                Notification.error(f"Failed to load tools: {e}")
+            Clock.schedule_once(show_error, 0)
+
+    def _create_tools_dialog(self, tools):
+        """Create and show the tools dialog."""
+        from kivymd.uix.dialog import MDDialog
+        from kivymd.uix.button import MDRaisedButton, MDTextButton
+        from kivymd.uix.list import MDList, OneLineListItem
+        from kivymd.uix.boxlayout import MDBoxLayout
+        from kivymd.uix.label import MDLabel
+
+        content = MDBoxLayout(orientation="vertical", size_hint_y=None, height=dp(400))
+
+        if not tools:
+            content.add_widget(
+                MDLabel(
+                    text="No MCP tools available.\nMake sure MCP servers are connected.",
+                    halign="center",
+                    theme_text_color="Hint",
+                )
+            )
+        else:
+            # Tools list
+            tools_list = MDList()
+            content.add_widget(
+                MDLabel(
+                    text=f"Available MCP Tools ({len(tools)}):",
+                    size_hint_y=None,
+                    height=dp(30),
+                )
+            )
+
+            for tool in tools[:10]:  # Limit to first 10 tools
+                item = OneLineListItem(
+                    text=f"{tool.name}: {tool.description[:60]}{'...' if len(tool.description) > 60 else ''}",
+                    on_release=lambda x, t=tool: self._execute_test_tool(t),
+                )
+                tools_list.add_widget(item)
+
+            content.add_widget(tools_list)
+
+        self.tools_dialog = MDDialog(
+            title="MCP Tools",
+            type="custom",
+            content_cls=content,
+            buttons=[
+                MDTextButton(text="Close", on_release=self._close_tools_dialog),
+                MDRaisedButton(
+                    text="Refresh", on_release=lambda x: self._refresh_tools_dialog()
+                ),
+            ],
+            size_hint=(0.8, 0.8),
+        )
+        self.tools_dialog.open()
+
+    def _execute_test_tool(self, tool):
+        """Execute a test tool call."""
+        # For search tools, use a default query
+        if "search" in tool.name.lower():
+            test_message = "Search the web for recent AI developments"
+        elif "weather" in tool.name.lower():
+            test_message = "Get current weather for San Francisco"
+        else:
+            test_message = f"Test the {tool.name} tool"
+
+        # Close dialog and send test message
+        self._close_tools_dialog()
+        self.message_input.text = test_message
+        self._send_message_wrapper()
+
+    def _close_tools_dialog(self, *args):
+        """Close the tools dialog."""
+        if hasattr(self, "tools_dialog"):
+            self.tools_dialog.dismiss()
+
+    def _refresh_tools_dialog(self):
+        """Refresh the tools dialog."""
+        self._close_tools_dialog()
+        self._show_tools_dialog()

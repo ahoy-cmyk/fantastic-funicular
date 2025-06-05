@@ -67,12 +67,15 @@ class MCPManager:
 
                     # Cache tools
                     tools = await client.list_tools()
+                    logger.debug(f"Server '{name}' returned {len(tools)} tools for caching")
                     for tool in tools:
                         # Prefix tool name with server name to avoid conflicts
                         cached_name = f"{name}:{tool.name}"
                         self.tools_cache[cached_name] = tool
+                        logger.debug(f"Cached tool: {cached_name} - {tool.description}")
 
                     logger.info(f"Added MCP server '{name}' with {len(tools)} tools")
+                    logger.debug(f"Total tools in cache now: {len(self.tools_cache)}")
                     return True
                 else:
                     logger.error(f"Failed to connect to server '{name}'")
@@ -157,6 +160,9 @@ class MCPManager:
         Returns:
             List of all tools with server prefixes
         """
+        logger.debug(f"Listing tools from cache. Cache has {len(self.tools_cache)} tools:")
+        for tool_name, tool in self.tools_cache.items():
+            logger.debug(f"  Tool: {tool_name} - {tool.description}")
         return list(self.tools_cache.values())
 
     async def execute_tool(self, tool_name: str, parameters: dict[str, Any]) -> MCPResponse:

@@ -323,6 +323,7 @@ class MCPManagementScreen(MDScreen):
 
         # Use a simpler approach with Clock.schedule_once
         from kivy.clock import Clock
+
         Clock.schedule_once(lambda dt: self._start_refresh_task(), 0)
 
     def _start_refresh_task(self):
@@ -346,10 +347,12 @@ class MCPManagementScreen(MDScreen):
         """Async refresh of servers and tools."""
         try:
             logger.info("Starting MCP screen refresh...")
-            
+
             # Get servers
             servers = await self.chat_manager.list_mcp_servers()
-            logger.info(f"Found {len(servers)} MCP servers: {[s.get('name', 'unnamed') for s in servers]}")
+            logger.info(
+                f"Found {len(servers)} MCP servers: {[s.get('name', 'unnamed') for s in servers]}"
+            )
 
             # Update UI on main thread
             from kivy.clock import Clock
@@ -364,6 +367,7 @@ class MCPManagementScreen(MDScreen):
         except Exception as e:
             logger.error(f"Error refreshing MCP data: {e}")
             import traceback
+
             logger.error(f"Refresh error traceback: {traceback.format_exc()}")
 
     def _update_servers_ui(self, servers):

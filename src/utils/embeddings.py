@@ -48,7 +48,7 @@ class EmbeddingGenerator:
             temp_env = {
                 "ORT_DISABLE_ALL_LOGS": "1",
                 "ONNXRUNTIME_LOG_SEVERITY_LEVEL": "4",
-                "OMP_NUM_THREADS": "1"
+                "OMP_NUM_THREADS": "1",
             }
 
             for key, value in temp_env.items():
@@ -60,7 +60,7 @@ class EmbeddingGenerator:
                 onnx_loggers = [
                     "onnxruntime",
                     "onnxruntime.capi",
-                    "onnxruntime.capi.onnxruntime_pybind11_state"
+                    "onnxruntime.capi.onnxruntime_pybind11_state",
                 ]
                 for logger_name in onnx_loggers:
                     onnx_logger = logging.getLogger(logger_name)

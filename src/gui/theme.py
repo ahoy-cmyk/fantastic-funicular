@@ -82,7 +82,7 @@ class NeuromancerTheme:
         - Accessibility compliance for inclusive design
     """
 
-        # Professional Color Palette
+    # Professional Color Palette
     # Primary colors chosen for trust, professionalism, and excellent readability
     # All colors tested for WCAG AA accessibility compliance
     PRIMARY_BLUE = (0.2, 0.6, 1.0, 1.0)
@@ -91,14 +91,14 @@ class NeuromancerTheme:
     SURFACE_DARK = (0.12, 0.12, 0.12, 1.0)
     CARD_DARK = (0.15, 0.15, 0.15, 1.0)
 
-        # Text Color Hierarchy
+    # Text Color Hierarchy
     # Optimized for dark backgrounds with excellent contrast ratios
     # Provides clear information hierarchy through opacity variation
     TEXT_PRIMARY = (1.0, 1.0, 1.0, 1.0)
     TEXT_SECONDARY = (0.8, 0.8, 0.8, 1.0)
     TEXT_HINT = (0.6, 0.6, 0.6, 1.0)
 
-        # Semantic Status Colors
+    # Semantic Status Colors
     # Universal color language for system state communication
     # Chosen for cross-cultural recognition and accessibility
     SUCCESS_GREEN = (0.2, 0.8, 0.4, 1.0)

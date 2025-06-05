@@ -217,17 +217,12 @@ class OllamaProvider(LLMProvider):
         - Benefits outweigh the small initialization cost
         """
         try:
-            client = ollama.AsyncClient(
-                host=self.host,
-                timeout=self.timeout
-            )
+            client = ollama.AsyncClient(host=self.host, timeout=self.timeout)
 
             # Increment request counter for monitoring
             self._request_count += 1
 
-            logger.debug(
-                f"Created Ollama client #{self._request_count} for {self.host}"
-            )
+            logger.debug(f"Created Ollama client #{self._request_count} for {self.host}")
             return client
 
         except Exception as e:
@@ -333,7 +328,7 @@ class OllamaProvider(LLMProvider):
             # Prepare Ollama-specific options
             options = {
                 "temperature": temperature,
-                **kwargs  # Allow override of any Ollama parameters
+                **kwargs,  # Allow override of any Ollama parameters
             }
 
             # Add num_predict (max_tokens) if specified
@@ -368,8 +363,7 @@ class OllamaProvider(LLMProvider):
                     "prompt_tokens": response.get("prompt_eval_count", 0),
                     "completion_tokens": response.get("eval_count", 0),
                     "total_tokens": (
-                        response.get("prompt_eval_count", 0) +
-                        response.get("eval_count", 0)
+                        response.get("prompt_eval_count", 0) + response.get("eval_count", 0)
                     ),
                 },
                 metadata={
@@ -378,18 +372,14 @@ class OllamaProvider(LLMProvider):
                     "total_duration": response.get("total_duration"),
                     "prompt_eval_duration": response.get("prompt_eval_duration"),
                     "load_duration": response.get("load_duration"),
-
                     # Request metadata
                     "request_duration_seconds": request_duration,
                     "model_loaded": response.get("load_duration", 0) > 0,
                     "provider": "ollama",
                     "host": self.host,
-
                     # Performance metrics
-                    "tokens_per_second": (
-                        response.get("eval_count", 0) / (request_duration or 1)
-                    ),
-                }
+                    "tokens_per_second": (response.get("eval_count", 0) / (request_duration or 1)),
+                },
             )
 
             logger.info(
@@ -520,26 +510,19 @@ class OllamaProvider(LLMProvider):
             ollama_messages = self._convert_messages_to_ollama_format(messages)
 
             # Prepare options (same as complete())
-            options = {
-                "temperature": temperature,
-                **kwargs
-            }
+            options = {"temperature": temperature, **kwargs}
 
             if max_tokens is not None:
                 options["num_predict"] = max_tokens
 
             # Enhanced logging for stream debugging
-            logger.info(
-                f"Ollama stream: Sending {len(ollama_messages)} messages to model {model}"
-            )
+            logger.info(f"Ollama stream: Sending {len(ollama_messages)} messages to model {model}")
 
             # Log recent message context for debugging (last 3 messages)
             for i, msg in enumerate(ollama_messages[-3:]):
                 role = msg.get("role", "unknown")
                 content = msg.get("content", "")
-                content_preview = (
-                    content[:50] + "..." if len(content) > 50 else content
-                )
+                content_preview = content[:50] + "..." if len(content) > 50 else content
                 logger.debug(f"  Message[-{3-i}]: {role}: {content_preview}")
 
             # Initiate streaming request
@@ -592,20 +575,17 @@ class OllamaProvider(LLMProvider):
             # Special handling for app shutdown scenarios
             error_str = str(e)
             if (
-                "Event loop is closed" in error_str or
-                "RuntimeError" in str(type(e).__name__) and
-                "cannot schedule new futures" in error_str.lower()
+                "Event loop is closed" in error_str
+                or "RuntimeError" in str(type(e).__name__)
+                and "cannot schedule new futures" in error_str.lower()
             ):
                 logger.info(
-                    "Ollama stream stopped due to app shutdown "
-                    f"(processed {chunk_count} chunks)"
+                    "Ollama stream stopped due to app shutdown " f"(processed {chunk_count} chunks)"
                 )
                 return
 
             # Log detailed error information for debugging
-            logger.error(
-                f"Ollama stream error after {chunk_count} chunks: {e}"
-            )
+            logger.error(f"Ollama stream error after {chunk_count} chunks: {e}")
 
             # Re-raise with appropriate exception type
             if "model not found" in error_str.lower():
@@ -683,8 +663,8 @@ class OllamaProvider(LLMProvider):
 
         # Check cache first (5 minute expiration)
         if (
-            self._cached_models is not None and
-            current_time - self._last_model_list_time < 300  # 5 minutes
+            self._cached_models is not None
+            and current_time - self._last_model_list_time < 300  # 5 minutes
         ):
             logger.debug(f"Returning cached model list ({len(self._cached_models)} models)")
             return self._cached_models
@@ -713,7 +693,9 @@ class OllamaProvider(LLMProvider):
                 self._cached_models = models
                 self._last_model_list_time = current_time
 
-                logger.info(f"Found {len(models)} Ollama models: {models[:5]}{'...' if len(models) > 5 else ''}")
+                logger.info(
+                    f"Found {len(models)} Ollama models: {models[:5]}{'...' if len(models) > 5 else ''}"
+                )
                 return models
 
         except httpx.TimeoutException as e:
@@ -722,7 +704,9 @@ class OllamaProvider(LLMProvider):
             self._cached_models = None
             return []
         except httpx.HTTPStatusError as e:
-            logger.error(f"HTTP error fetching Ollama models: {e.response.status_code} {e.response.text}")
+            logger.error(
+                f"HTTP error fetching Ollama models: {e.response.status_code} {e.response.text}"
+            )
             if e.response.status_code == 404:
                 logger.warning("Ollama API endpoint not found - is Ollama running?")
             self._cached_models = None
@@ -908,7 +892,9 @@ class OllamaProvider(LLMProvider):
 
         try:
             logger.info(f"Initiating model download: {model}")
-            logger.info("This may take several minutes depending on model size and connection speed")
+            logger.info(
+                "This may take several minutes depending on model size and connection speed"
+            )
 
             # Perform the model pull operation
             # Note: This is a long-running operation that may take many minutes
@@ -977,10 +963,7 @@ class OllamaProvider(LLMProvider):
                     ollama_messages.append(msg)
                 else:
                     # Convert Message object to dict
-                    ollama_messages.append({
-                        "role": msg.role,
-                        "content": msg.content
-                    })
+                    ollama_messages.append({"role": msg.role, "content": msg.content})
             except Exception as e:
                 raise ValueError(f"Invalid message at index {i}: {e}") from e
 

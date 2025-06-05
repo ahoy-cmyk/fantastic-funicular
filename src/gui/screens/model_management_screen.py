@@ -143,7 +143,7 @@ class ModelCard(MDCard):
             orientation="horizontal",
             spacing=UIConstants.SPACING_MEDIUM,
             adaptive_height=True,
-            size_hint_y=None
+            size_hint_y=None,
         )
 
         # Model info
@@ -159,31 +159,31 @@ class ModelCard(MDCard):
             font_style="Subtitle1",
             theme_text_color="Primary",
             adaptive_height=True,
-            bold=self.is_current
+            bold=self.is_current,
         )
 
         # Provider and status
         status_layout = MDBoxLayout(
-            orientation="horizontal",
-            spacing=UIConstants.SPACING_SMALL,
-            adaptive_height=True
+            orientation="horizontal", spacing=UIConstants.SPACING_SMALL, adaptive_height=True
         )
 
         provider_label = MDLabel(
             text=f"Provider: {self.model_info.provider.title()}",
             font_style="Caption",
             theme_text_color="Secondary",
-            adaptive_height=True
+            adaptive_height=True,
         )
 
         status_color = "Primary" if self.model_info.status == ModelStatus.AVAILABLE else "Error"
-        status_text = "Available" if self.model_info.status == ModelStatus.AVAILABLE else "Unavailable"
+        status_text = (
+            "Available" if self.model_info.status == ModelStatus.AVAILABLE else "Unavailable"
+        )
 
         status_label = MDLabel(
             text=f"Status: {status_text}",
             font_style="Caption",
             theme_text_color=status_color,
-            adaptive_height=True
+            adaptive_height=True,
         )
 
         status_layout.add_widget(provider_label)
@@ -195,7 +195,7 @@ class ModelCard(MDCard):
                 text=self.model_info.description,
                 font_style="Body2",
                 theme_text_color="Secondary",
-                adaptive_height=True
+                adaptive_height=True,
             )
             info_layout.add_widget(desc_label)
 
@@ -204,48 +204,36 @@ class ModelCard(MDCard):
 
         # Model specs
         specs_layout = MDBoxLayout(
-            orientation="horizontal",
-            spacing=UIConstants.SPACING_SMALL,
-            adaptive_height=True
+            orientation="horizontal", spacing=UIConstants.SPACING_SMALL, adaptive_height=True
         )
 
         if self.model_info.parameters:
-            param_chip = MDChip(
-                text=self.model_info.parameters,
-                height=dp(24),
-                size_hint_y=None
-            )
+            param_chip = MDChip(text=self.model_info.parameters, height=dp(24), size_hint_y=None)
             specs_layout.add_widget(param_chip)
 
         if self.model_info.context_length:
             context_chip = MDChip(
                 text=f"{self.model_info.context_length // 1000}K context",
                 height=dp(24),
-                size_hint_y=None
+                size_hint_y=None,
             )
             specs_layout.add_widget(context_chip)
 
         if self.model_info.cost_per_token:
             cost_chip = MDChip(
-                text=f"${self.model_info.cost_per_token:.4f}/token",
-                height=dp(24),
-                size_hint_y=None
+                text=f"${self.model_info.cost_per_token:.4f}/token", height=dp(24), size_hint_y=None
             )
             specs_layout.add_widget(cost_chip)
 
         # Capabilities
         if self.model_info.capabilities:
             caps_layout = MDBoxLayout(
-                orientation="horizontal",
-                spacing=UIConstants.SPACING_SMALL,
-                adaptive_height=True
+                orientation="horizontal", spacing=UIConstants.SPACING_SMALL, adaptive_height=True
             )
 
             for cap in self.model_info.capabilities[:4]:  # Show first 4 capabilities
                 cap_chip = MDChip(
-                    text=cap.replace("_", " ").title(),
-                    height=dp(20),
-                    size_hint_y=None
+                    text=cap.replace("_", " ").title(), height=dp(20), size_hint_y=None
                 )
                 caps_layout.add_widget(cap_chip)
 
@@ -253,7 +241,7 @@ class ModelCard(MDCard):
                 more_chip = MDChip(
                     text=f"+{len(self.model_info.capabilities) - 4} more",
                     height=dp(20),
-                    size_hint_y=None
+                    size_hint_y=None,
                 )
                 caps_layout.add_widget(more_chip)
 
@@ -263,7 +251,7 @@ class ModelCard(MDCard):
             size_hint_y=None,
             height=dp(36),
             disabled=self.is_current or self.model_info.status != ModelStatus.AVAILABLE,
-            on_release=self.on_select_model
+            on_release=self.on_select_model,
         )
 
         header.add_widget(info_layout)
@@ -271,7 +259,7 @@ class ModelCard(MDCard):
         self.add_widget(header)
         if specs_layout.children:
             self.add_widget(specs_layout)
-        if 'caps_layout' in locals() and caps_layout.children:
+        if "caps_layout" in locals() and caps_layout.children:
             self.add_widget(caps_layout)
         self.add_widget(select_button)
 
@@ -282,7 +270,7 @@ class ModelCard(MDCard):
         while parent and not isinstance(parent, ModelManagementScreen):
             parent = parent.parent
 
-        if parent and hasattr(parent, 'on_model_selected'):
+        if parent and hasattr(parent, "on_model_selected"):
             parent.on_model_selected(self.model_info)
 
 
@@ -352,9 +340,7 @@ class ProviderHealthCard(MDCard):
         """Build provider health UI."""
         # Header
         header = MDBoxLayout(
-            orientation="horizontal",
-            spacing=UIConstants.SPACING_MEDIUM,
-            adaptive_height=True
+            orientation="horizontal", spacing=UIConstants.SPACING_MEDIUM, adaptive_height=True
         )
 
         # Provider name
@@ -362,7 +348,7 @@ class ProviderHealthCard(MDCard):
             text=self.provider_info.name.title(),
             font_style="Subtitle1",
             theme_text_color="Primary",
-            adaptive_height=True
+            adaptive_height=True,
         )
 
         # Status indicator
@@ -370,14 +356,14 @@ class ProviderHealthCard(MDCard):
             "healthy": "Primary",
             "degraded": "Secondary",
             "unavailable": "Error",
-            "error": "Error"
+            "error": "Error",
         }
 
         status_label = MDLabel(
             text=self.provider_info.status.value.title(),
             font_style="Caption",
             theme_text_color=status_colors.get(self.provider_info.status.value, "Secondary"),
-            adaptive_height=True
+            adaptive_height=True,
         )
 
         header.add_widget(name_label)
@@ -385,9 +371,7 @@ class ProviderHealthCard(MDCard):
 
         # Details
         details_layout = MDBoxLayout(
-            orientation="vertical",
-            spacing=UIConstants.SPACING_SMALL,
-            adaptive_height=True
+            orientation="vertical", spacing=UIConstants.SPACING_SMALL, adaptive_height=True
         )
 
         # Model count
@@ -395,7 +379,7 @@ class ProviderHealthCard(MDCard):
             text=f"Models: {len(self.provider_info.available_models)}",
             font_style="Body2",
             theme_text_color="Secondary",
-            adaptive_height=True
+            adaptive_height=True,
         )
         details_layout.add_widget(model_count_label)
 
@@ -405,7 +389,7 @@ class ProviderHealthCard(MDCard):
                 text=f"Response Time: {self.provider_info.response_time_ms:.0f}ms",
                 font_style="Body2",
                 theme_text_color="Secondary",
-                adaptive_height=True
+                adaptive_height=True,
             )
             details_layout.add_widget(time_label)
 
@@ -415,7 +399,7 @@ class ProviderHealthCard(MDCard):
                 text=f"Error: {self.provider_info.error_message}",
                 font_style="Caption",
                 theme_text_color="Error",
-                adaptive_height=True
+                adaptive_height=True,
             )
             details_layout.add_widget(error_label)
 
@@ -497,7 +481,7 @@ class RAGConfigCard(MDCard):
             text="RAG Configuration",
             font_style="H6",
             theme_text_color="Primary",
-            adaptive_height=True
+            adaptive_height=True,
         )
         self.add_widget(header_label)
 
@@ -506,21 +490,14 @@ class RAGConfigCard(MDCard):
             orientation="horizontal",
             spacing=UIConstants.SPACING_MEDIUM,
             adaptive_height=True,
-            size_hint_y=None
+            size_hint_y=None,
         )
 
-        enable_label = MDLabel(
-            text="RAG Status:",
-            font_style="Body1",
-            adaptive_height=True
-        )
+        enable_label = MDLabel(text="RAG Status:", font_style="Body1", adaptive_height=True)
 
         self.rag_enabled = True  # Track state
         self.enable_button = MDRaisedButton(
-            text="Enabled",
-            size_hint_y=None,
-            height=dp(36),
-            on_release=self.toggle_rag
+            text="Enabled", size_hint_y=None, height=dp(36), on_release=self.toggle_rag
         )
 
         enable_layout.add_widget(enable_label)
@@ -529,10 +506,7 @@ class RAGConfigCard(MDCard):
 
         # Configuration options
         config_grid = MDGridLayout(
-            cols=2,
-            spacing=UIConstants.SPACING_MEDIUM,
-            adaptive_height=True,
-            size_hint_y=None
+            cols=2, spacing=UIConstants.SPACING_MEDIUM, adaptive_height=True, size_hint_y=None
         )
 
         # Max memories
@@ -541,7 +515,7 @@ class RAGConfigCard(MDCard):
             text=str(self.rag_config.max_memories),
             input_filter="int",
             size_hint_y=None,
-            height=dp(56)
+            height=dp(56),
         )
 
         # Relevance threshold
@@ -550,7 +524,7 @@ class RAGConfigCard(MDCard):
             text=str(self.rag_config.min_relevance_threshold),
             input_filter="float",
             size_hint_y=None,
-            height=dp(56)
+            height=dp(56),
         )
 
         # Max context tokens
@@ -559,7 +533,7 @@ class RAGConfigCard(MDCard):
             text=str(self.rag_config.max_context_tokens),
             input_filter="int",
             size_hint_y=None,
-            height=dp(56)
+            height=dp(56),
         )
 
         # Timeout
@@ -568,7 +542,7 @@ class RAGConfigCard(MDCard):
             text=str(self.rag_config.retrieval_timeout_ms),
             input_filter="int",
             size_hint_y=None,
-            height=dp(56)
+            height=dp(56),
         )
 
         config_grid.add_widget(self.max_memories_field)
@@ -580,16 +554,10 @@ class RAGConfigCard(MDCard):
 
         # Checkboxes for boolean options (avoiding MDSwitch)
         options_layout = MDBoxLayout(
-            orientation="vertical",
-            spacing=UIConstants.SPACING_SMALL,
-            adaptive_height=True
+            orientation="vertical", spacing=UIConstants.SPACING_SMALL, adaptive_height=True
         )
 
-        options_title = MDLabel(
-            text="Options:",
-            font_style="Subtitle2",
-            adaptive_height=True
-        )
+        options_title = MDLabel(text="Options:", font_style="Subtitle2", adaptive_height=True)
         options_layout.add_widget(options_title)
 
         # Create checkboxes for boolean options
@@ -609,7 +577,7 @@ class RAGConfigCard(MDCard):
                 text=option_text,
                 size_hint_y=None,
                 height=dp(36),
-                on_release=lambda x, k=key, l=label: self.toggle_option(k, l)
+                on_release=lambda x, k=key, l=label: self.toggle_option(k, l),
             )
             option_button.key = key
             option_button.label = label
@@ -622,7 +590,7 @@ class RAGConfigCard(MDCard):
             text="Apply Configuration",
             size_hint_y=None,
             height=dp(40),
-            on_release=self.on_apply_config
+            on_release=self.on_apply_config,
         )
         self.add_widget(apply_button)
 
@@ -631,7 +599,7 @@ class RAGConfigCard(MDCard):
         self.rag_enabled = not self.rag_enabled
         button.text = "Enabled" if self.rag_enabled else "Disabled"
         # Notify parent to enable/disable RAG
-        if hasattr(self.parent.parent.parent.parent, 'chat_manager'):
+        if hasattr(self.parent.parent.parent.parent, "chat_manager"):
             self.parent.parent.parent.parent.chat_manager.enable_rag(self.rag_enabled)
 
     def toggle_option(self, key, label):
@@ -641,13 +609,17 @@ class RAGConfigCard(MDCard):
         for child in self.children:
             if isinstance(child, MDBoxLayout):
                 for subchild in child.children:
-                    if isinstance(subchild, MDFlatButton) and hasattr(subchild, 'key') and subchild.key == key:
+                    if (
+                        isinstance(subchild, MDFlatButton)
+                        and hasattr(subchild, "key")
+                        and subchild.key == key
+                    ):
                         subchild.text = f"[{'X' if self.option_states[key] else ' '}] {label}"
                         break
 
     def on_apply_config(self, button):
         """Handle configuration application."""
-        if hasattr(self.parent.parent.parent.parent, 'on_rag_config_updated'):
+        if hasattr(self.parent.parent.parent.parent, "on_rag_config_updated"):
             config = self.get_config()
             self.parent.parent.parent.parent.on_rag_config_updated(config)
 
@@ -804,7 +776,7 @@ class ModelManagementScreen(MDScreen):
         main_layout = MDBoxLayout(
             orientation="vertical",
             spacing=UIConstants.SPACING_MEDIUM,
-            padding=UIConstants.PADDING_MEDIUM
+            padding=UIConstants.PADDING_MEDIUM,
         )
 
         # Header
@@ -812,34 +784,25 @@ class ModelManagementScreen(MDScreen):
             orientation="horizontal",
             spacing=UIConstants.SPACING_MEDIUM,
             adaptive_height=True,
-            size_hint_y=None
+            size_hint_y=None,
         )
 
         # Back button
-        back_button = MDIconButton(
-            icon="arrow-left",
-            on_release=self.go_back
-        )
+        back_button = MDIconButton(icon="arrow-left", on_release=self.go_back)
 
         title = MDLabel(
             text="Model Management",
             font_style="H4",
             theme_text_color="Primary",
-            adaptive_height=True
+            adaptive_height=True,
         )
 
         # Refresh button
-        refresh_button = MDIconButton(
-            icon="refresh",
-            on_release=self.discover_models
-        )
+        refresh_button = MDIconButton(icon="refresh", on_release=self.discover_models)
 
         # Selection strategy dropdown
         strategy_button = MDRaisedButton(
-            text="Auto Select",
-            size_hint_y=None,
-            height=dp(40),
-            on_release=self.show_strategy_menu
+            text="Auto Select", size_hint_y=None, height=dp(40), on_release=self.show_strategy_menu
         )
 
         header.add_widget(back_button)
@@ -855,7 +818,7 @@ class ModelManagementScreen(MDScreen):
             spacing=UIConstants.SPACING_SMALL,
             adaptive_height=True,
             size_hint_y=None,
-            padding=[0, dp(10), 0, dp(10)]
+            padding=[0, dp(10), 0, dp(10)],
         )
 
         current_label = MDLabel(
@@ -864,7 +827,7 @@ class ModelManagementScreen(MDScreen):
             theme_text_color="Secondary",
             adaptive_height=True,
             size_hint_x=None,
-            width=dp(120)
+            width=dp(120),
         )
 
         self.current_model_label = MDLabel(
@@ -872,7 +835,7 @@ class ModelManagementScreen(MDScreen):
             font_style="Subtitle1",
             theme_text_color="Primary",
             adaptive_height=True,
-            bold=True
+            bold=True,
         )
 
         current_model_layout.add_widget(current_label)
@@ -885,7 +848,7 @@ class ModelManagementScreen(MDScreen):
             orientation="vertical",
             spacing=UIConstants.SPACING_MEDIUM,
             adaptive_height=True,
-            size_hint_y=None
+            size_hint_y=None,
         )
 
         # Provider health section
@@ -893,7 +856,7 @@ class ModelManagementScreen(MDScreen):
             text="Provider Health",
             font_style="H6",
             theme_text_color="Primary",
-            adaptive_height=True
+            adaptive_height=True,
         )
         content_layout.add_widget(health_title)
 
@@ -901,7 +864,7 @@ class ModelManagementScreen(MDScreen):
             orientation="vertical",
             spacing=UIConstants.SPACING_SMALL,
             adaptive_height=True,
-            size_hint_y=None
+            size_hint_y=None,
         )
         content_layout.add_widget(self.health_layout)
 
@@ -910,7 +873,7 @@ class ModelManagementScreen(MDScreen):
             text="Available Models",
             font_style="H6",
             theme_text_color="Primary",
-            adaptive_height=True
+            adaptive_height=True,
         )
         content_layout.add_widget(models_title)
 
@@ -918,7 +881,7 @@ class ModelManagementScreen(MDScreen):
             orientation="vertical",
             spacing=UIConstants.SPACING_MEDIUM,
             adaptive_height=True,
-            size_hint_y=None
+            size_hint_y=None,
         )
         content_layout.add_widget(self.models_layout)
 
@@ -927,14 +890,12 @@ class ModelManagementScreen(MDScreen):
             text="RAG Configuration",
             font_style="H6",
             theme_text_color="Primary",
-            adaptive_height=True
+            adaptive_height=True,
         )
         content_layout.add_widget(rag_title)
 
         self.rag_layout = MDBoxLayout(
-            orientation="vertical",
-            adaptive_height=True,
-            size_hint_y=None
+            orientation="vertical", adaptive_height=True, size_hint_y=None
         )
         content_layout.add_widget(self.rag_layout)
 
@@ -948,7 +909,7 @@ class ModelManagementScreen(MDScreen):
 
     def setup_rag_config(self):
         """Setup RAG configuration UI."""
-        if self.chat_manager and hasattr(self.chat_manager, 'rag_system'):
+        if self.chat_manager and hasattr(self.chat_manager, "rag_system"):
             config = self.chat_manager.rag_system.config
             rag_card = RAGConfigCard(config)
             self.rag_layout.add_widget(rag_card)
@@ -1011,7 +972,9 @@ class ModelManagementScreen(MDScreen):
                     if success:
                         Clock.schedule_once(self.update_ui, 0)
                     else:
-                        Clock.schedule_once(lambda dt: Notification.error("Failed to discover models"), 0)
+                        Clock.schedule_once(
+                            lambda dt: Notification.error("Failed to discover models"), 0
+                        )
                 except Exception as e:
                     logger.error(f"Model discovery failed: {e}")
                     Clock.schedule_once(lambda dt: Notification.error(f"Discovery failed: {e}"), 0)
@@ -1083,7 +1046,9 @@ class ModelManagementScreen(MDScreen):
             return
 
         # Update current model label
-        current_model_text = f"{self.chat_manager.current_provider}:{self.chat_manager.current_model}"
+        current_model_text = (
+            f"{self.chat_manager.current_provider}:{self.chat_manager.current_model}"
+        )
         self.current_model_label.text = current_model_text
 
         # Clear existing content
@@ -1241,12 +1206,21 @@ class ModelManagementScreen(MDScreen):
                     if model_info:
                         success = self.chat_manager.set_model(model_info.name, model_info.provider)
                         if success:
-                            Clock.schedule_once(lambda dt: Notification.success(f"Switched to {model_info.display_name}"), 0)
+                            Clock.schedule_once(
+                                lambda dt: Notification.success(
+                                    f"Switched to {model_info.display_name}"
+                                ),
+                                0,
+                            )
                             Clock.schedule_once(self.update_ui, 0)
                         else:
-                            Clock.schedule_once(lambda dt: Notification.error("Failed to switch model"), 0)
+                            Clock.schedule_once(
+                                lambda dt: Notification.error("Failed to switch model"), 0
+                            )
                     else:
-                        Clock.schedule_once(lambda dt: Notification.warning("No suitable model found"), 0)
+                        Clock.schedule_once(
+                            lambda dt: Notification.warning("No suitable model found"), 0
+                        )
                 except Exception as e:
                     logger.error(f"Model selection failed: {e}")
                     Clock.schedule_once(lambda dt: Notification.error(f"Selection failed: {e}"), 0)

@@ -343,7 +343,7 @@ class LMStudioProvider(OpenAIProvider):
         host: str = "http://localhost:1234",
         api_key: str = "lm-studio",
         timeout: float = 120.0,
-        max_retries: int = 2
+        max_retries: int = 2,
     ):
         """
         Initialize LM Studio provider with local-optimized configuration.
@@ -415,9 +415,7 @@ class LMStudioProvider(OpenAIProvider):
         """
         # Validate host URL format
         if not host.startswith(("http://", "https://")):
-            raise ValueError(
-                f"Host must start with http:// or https://, got: {host}"
-            )
+            raise ValueError(f"Host must start with http:// or https://, got: {host}")
 
         # Store original host for reference and logging
         self.host = host.rstrip("/")  # Remove trailing slash
@@ -427,12 +425,14 @@ class LMStudioProvider(OpenAIProvider):
             api_key=api_key,
             base_url=f"{self.host}/v1",  # LM Studio uses /v1 prefix
             timeout=timeout,
-            max_retries=max_retries
+            max_retries=max_retries,
         )
 
         # LM Studio-specific metadata
         self._service_type = "lm-studio"
-        self._local_deployment = host.startswith("http://localhost") or host.startswith("http://127.0.0.1")
+        self._local_deployment = host.startswith("http://localhost") or host.startswith(
+            "http://127.0.0.1"
+        )
 
         logger.info(
             f"Initialized LM Studio provider: host={self.host}, "
@@ -567,10 +567,12 @@ class LMStudioProvider(OpenAIProvider):
 
         # Check cache first (5 minute expiration, shorter than cloud providers)
         if (
-            self._cached_models is not None and
-            current_time - self._last_model_list_time < 300  # 5 minutes
+            self._cached_models is not None
+            and current_time - self._last_model_list_time < 300  # 5 minutes
         ):
-            logger.debug(f"Returning cached LM Studio model list ({len(self._cached_models)} models)")
+            logger.debug(
+                f"Returning cached LM Studio model list ({len(self._cached_models)} models)"
+            )
             return self._cached_models
 
         try:
@@ -611,8 +613,7 @@ class LMStudioProvider(OpenAIProvider):
                 )
             elif "timeout" in error_msg:
                 logger.error(
-                    "Timeout connecting to LM Studio. "
-                    "Service may be overloaded or unresponsive."
+                    "Timeout connecting to LM Studio. " "Service may be overloaded or unresponsive."
                 )
             elif "404" in error_msg or "not found" in error_msg:
                 logger.error(
@@ -764,9 +765,7 @@ class LMStudioProvider(OpenAIProvider):
             is_healthy = len(models) > 0
 
             if is_healthy:
-                logger.debug(
-                    f"LM Studio health check passed: {len(models)} models loaded"
-                )
+                logger.debug(f"LM Studio health check passed: {len(models)} models loaded")
             else:
                 # Provide specific guidance for common local issues
                 logger.warning(

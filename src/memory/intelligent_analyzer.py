@@ -139,7 +139,9 @@ class IntelligentMemoryAnalyzer:
 
         return self._finalize_signals(signals, content, conversation_context)
 
-    def _finalize_signals(self, signals: list, content: str, conversation_context: list[str]) -> list:
+    def _finalize_signals(
+        self, signals: list, content: str, conversation_context: list[str]
+    ) -> list:
         """Finalize signals with contextual analysis and scoring."""
         # Apply contextual analysis only if we have some initial signals
         if signals:
@@ -149,7 +151,9 @@ class IntelligentMemoryAnalyzer:
 
             # Analyze overall conversation flow and significance
             if conversation_context:
-                signals.extend(self._analyze_conversation_significance(content, conversation_context))
+                signals.extend(
+                    self._analyze_conversation_significance(content, conversation_context)
+                )
 
         # Remove duplicates and merge related signals
         signals = self._deduplicate_and_merge_signals(signals)

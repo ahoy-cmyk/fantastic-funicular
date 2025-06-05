@@ -642,9 +642,7 @@ class MemoryScreen(MDScreen):
 
             # Use the efficient get_all_memories method with pagination
             new_memories = await self.safe_memory.safe_get_all_memories(
-                memory_types=None,  # Get all types
-                limit=self.page_size,
-                offset=offset
+                memory_types=None, limit=self.page_size, offset=offset  # Get all types
             )
 
             # Update pagination state
@@ -738,8 +736,9 @@ class MemoryScreen(MDScreen):
     def _append_memories_to_display(self):
         """Append new memories to the existing display (for load more)."""
         # Get the number of memories already displayed
-        current_count = len([child for child in self.memories_list.children
-                           if isinstance(child, MemoryListItem)])
+        current_count = len(
+            [child for child in self.memories_list.children if isinstance(child, MemoryListItem)]
+        )
 
         # Add only the new memories
         new_memories = self.filtered_memories[current_count:]
@@ -784,9 +783,9 @@ class MemoryScreen(MDScreen):
         """Update or remove the Load More button based on availability."""
         # Remove existing load more button if any
         for child in self.memories_list.children[:]:
-            if hasattr(child, 'children') and child.children:
+            if hasattr(child, "children") and child.children:
                 for grandchild in child.children:
-                    if hasattr(grandchild, 'text') and 'Load More' in str(grandchild.text):
+                    if hasattr(grandchild, "text") and "Load More" in str(grandchild.text):
                         self.memories_list.remove_widget(child)
                         break
 
@@ -796,6 +795,7 @@ class MemoryScreen(MDScreen):
 
     def _load_more_memories(self, *args):
         """Load more memories when button is pressed."""
+
         def run_async():
             loop = asyncio.new_event_loop()
             try:
@@ -803,7 +803,9 @@ class MemoryScreen(MDScreen):
                 loop.run_until_complete(self._load_memories_async(load_more=True))
             except Exception as e:
                 logger.error(f"Failed to load more memories: {e}")
-                Clock.schedule_once(lambda dt: Notification.error("Failed to load more memories"), 0)
+                Clock.schedule_once(
+                    lambda dt: Notification.error("Failed to load more memories"), 0
+                )
             finally:
                 loop.close()
 

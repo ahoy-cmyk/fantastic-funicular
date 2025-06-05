@@ -13,6 +13,7 @@ class Toast:
     @staticmethod
     def show(text: str, duration: float = 3.0):
         """Show a toast notification."""
+
         # Ensure this runs on the main thread
         def _show_on_main_thread(dt):
             try:
@@ -54,7 +55,9 @@ class Toast:
                 # Schedule removal
                 def remove_toast(dt):
                     Animation(opacity=0, duration=0.3).start(toast_container)
-                    Clock.schedule_once(lambda dt2: current_screen.remove_widget(toast_container), 0.3)
+                    Clock.schedule_once(
+                        lambda dt2: current_screen.remove_widget(toast_container), 0.3
+                    )
 
                 Clock.schedule_once(remove_toast, duration)
             except Exception:

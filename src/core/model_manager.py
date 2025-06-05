@@ -163,7 +163,7 @@ class ModelInfo:
         if not self.size_bytes:
             return "Unknown"
 
-        for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
+        for unit in ["B", "KB", "MB", "GB", "TB"]:
             if self.size_bytes < 1024.0:
                 return f"{self.size_bytes:.1f} {unit}"
             self.size_bytes /= 1024.0
@@ -313,7 +313,7 @@ class ModelManager:
             established. Extracts provider instances for model operations.
         """
         self.chat_manager = chat_manager
-        if hasattr(chat_manager, 'providers'):
+        if hasattr(chat_manager, "providers"):
             self._provider_instances = chat_manager.providers
 
     async def discover_models(self, force_refresh: bool = False) -> bool:
@@ -346,8 +346,11 @@ class ModelManager:
             Provider failures are logged but don't stop discovery.
             At least one successful provider is required to return True.
         """
-        if (not force_refresh and self.last_discovery and
-            datetime.now() - self.last_discovery < timedelta(minutes=1)):
+        if (
+            not force_refresh
+            and self.last_discovery
+            and datetime.now() - self.last_discovery < timedelta(minutes=1)
+        ):
             logger.debug("Skipping model discovery - too recent")
             return True
 
@@ -377,15 +380,17 @@ class ModelManager:
                         name=provider_name,
                         status=ProviderStatus.ERROR,
                         error_message=str(result),
-                        last_health_check=datetime.now()
+                        last_health_check=datetime.now(),
                     )
                 else:
                     successful_providers += 1
 
             self.last_discovery = datetime.now()
 
-            logger.info(f"Model discovery completed. Found {len(self._models)} models "
-                       f"from {successful_providers}/{len(self._provider_instances)} providers")
+            logger.info(
+                f"Model discovery completed. Found {len(self._models)} models "
+                f"from {successful_providers}/{len(self._provider_instances)} providers"
+            )
 
             return successful_providers > 0
 
@@ -439,7 +444,7 @@ class ModelManager:
                 last_health_check=datetime.now(),
                 response_time_ms=response_time,
                 available_models=model_names,
-                capabilities=self._get_provider_capabilities(provider_name)
+                capabilities=self._get_provider_capabilities(provider_name),
             )
 
             self._providers[provider_name] = provider_info
@@ -457,8 +462,8 @@ class ModelManager:
                     parameters=self._extract_parameters(model_name),
                     metadata={
                         "discovered_at": datetime.now().isoformat(),
-                        "provider_response_time_ms": response_time
-                    }
+                        "provider_response_time_ms": response_time,
+                    },
                 )
 
                 # Add cost information for paid APIs
@@ -468,8 +473,10 @@ class ModelManager:
                 self._models[model_info.full_name] = model_info
                 logger.debug(f"Stored model: {model_info.full_name} -> {model_info.name}")
 
-            logger.info(f"Discovered {len(model_names)} models from {provider_name} "
-                       f"(response time: {response_time:.1f}ms)")
+            logger.info(
+                f"Discovered {len(model_names)} models from {provider_name} "
+                f"(response time: {response_time:.1f}ms)"
+            )
             logger.debug(f"Total models in registry: {len(self._models)}")
             logger.debug(f"Model keys: {list(self._models.keys())}")
 
@@ -479,7 +486,7 @@ class ModelManager:
                 name=provider_name,
                 status=ProviderStatus.ERROR,
                 error_message=str(e),
-                last_health_check=datetime.now()
+                last_health_check=datetime.now(),
             )
             raise
 
@@ -562,14 +569,18 @@ class ModelManager:
         if provider:
             full_name = f"{provider}:{model_name}"
             result = self._models.get(full_name)
-            logger.info(f"Provider:model search for '{full_name}': {'Found' if result else 'Not found'}")
+            logger.info(
+                f"Provider:model search for '{full_name}': {'Found' if result else 'Not found'}"
+            )
             if result:
                 return result
 
         # Handle full model names (provider:model) - only if no provider was specified
         if ":" in model_name and not provider:
             result = self._models.get(model_name)
-            logger.info(f"Full name search for '{model_name}': {'Found' if result else 'Not found'}")
+            logger.info(
+                f"Full name search for '{model_name}': {'Found' if result else 'Not found'}"
+            )
             if result:
                 return result
 
@@ -607,7 +618,7 @@ class ModelManager:
     async def select_best_model(
         self,
         strategy: ModelSelectionStrategy | None = None,
-        requirements: dict[str, Any] | None = None
+        requirements: dict[str, Any] | None = None,
     ) -> ModelInfo | None:
         """Select the best model based on strategy and requirements.
 
@@ -678,9 +689,10 @@ class ModelManager:
 
         elif strategy == ModelSelectionStrategy.FASTEST:
             # Select model from provider with best response time
-            provider_times = {p.name: p.response_time_ms or float('inf')
-                            for p in self._providers.values()}
-            available_models.sort(key=lambda m: provider_times.get(m.provider, float('inf')))
+            provider_times = {
+                p.name: p.response_time_ms or float("inf") for p in self._providers.values()
+            }
+            available_models.sort(key=lambda m: provider_times.get(m.provider, float("inf")))
             return available_models[0]
 
         elif strategy == ModelSelectionStrategy.CHEAPEST:
@@ -762,7 +774,9 @@ class ModelManager:
         # Fallback
         return available_models[0]
 
-    def _filter_by_requirements(self, models: list[ModelInfo], requirements: dict[str, Any]) -> list[ModelInfo]:
+    def _filter_by_requirements(
+        self, models: list[ModelInfo], requirements: dict[str, Any]
+    ) -> list[ModelInfo]:
         """Filter models by requirements.
 
         Applies requirement filters to model list.
@@ -867,7 +881,7 @@ class ModelManager:
             "success_rate": 0.0,
             "avg_response_time_ms": 0.0,
             "min_response_time_ms": 0.0,
-            "max_response_time_ms": 0.0
+            "max_response_time_ms": 0.0,
         }
 
         total_requests = stats["total_requests"]
@@ -908,7 +922,7 @@ class ModelManager:
         capabilities = {
             "ollama": ["chat", "local", "offline", "free"],
             "openai": ["chat", "function_calling", "vision", "paid"],
-            "lmstudio": ["chat", "local", "offline", "free"]
+            "lmstudio": ["chat", "local", "offline", "free"],
         }
         return capabilities.get(provider, ["chat"])
 
@@ -964,7 +978,7 @@ class ModelManager:
             "gpt-3.5": "Fast and efficient language model for general tasks",
             "llama": "Open-source large language model",
             "mistral": "High-performance open-source model",
-            "codellama": "Specialized model for code generation and analysis"
+            "codellama": "Specialized model for code generation and analysis",
         }
 
         model_lower = model_name.lower()
@@ -1069,7 +1083,7 @@ class ModelManager:
         import re
 
         # Look for parameter patterns like 7B, 13B, etc.
-        match = re.search(r'(\d+\.?\d*)[Bb]', model_name)
+        match = re.search(r"(\d+\.?\d*)[Bb]", model_name)
         if match:
             return f"{match.group(1)}B"
 

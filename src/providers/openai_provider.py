@@ -251,7 +251,7 @@ class OpenAIProvider(LLMProvider):
         api_key: str | None = None,
         base_url: str | None = None,
         timeout: float = 60.0,
-        max_retries: int = 3
+        max_retries: int = 3,
     ):
         """
         Initialize OpenAI provider with comprehensive configuration.
@@ -323,10 +323,7 @@ class OpenAIProvider(LLMProvider):
 
         # Initialize persistent client with optimized configuration
         self.client = AsyncOpenAI(
-            api_key=self.api_key,
-            base_url=self.base_url,
-            timeout=timeout,
-            max_retries=max_retries
+            api_key=self.api_key, base_url=self.base_url, timeout=timeout, max_retries=max_retries
         )
 
         # Provider metadata for monitoring
@@ -524,18 +521,16 @@ class OpenAIProvider(LLMProvider):
                     "finish_reason": choice.finish_reason,
                     "id": response.id,
                     "created": response.created,
-
                     # Request metadata
                     "request_duration_seconds": request_duration,
                     "provider": "openai",
                     "base_url": self.base_url or "api.openai.com",
-
                     # Performance metrics
                     "tokens_per_second": (
-                        (response.usage.completion_tokens if response.usage else 0) /
-                        (request_duration or 1)
+                        (response.usage.completion_tokens if response.usage else 0)
+                        / (request_duration or 1)
                     ),
-                }
+                },
             )
 
             logger.info(
@@ -751,9 +746,7 @@ class OpenAIProvider(LLMProvider):
             logger.error(f"OpenAI stream connection error: {e}")
             raise ConnectionError(f"Stream connection failed: {e}") from e
         except Exception as e:
-            logger.error(
-                f"OpenAI stream error after {chunk_count} chunks: {e}"
-            )
+            logger.error(f"OpenAI stream error after {chunk_count} chunks: {e}")
             raise ConnectionError(f"Stream failed: {e}") from e
 
     async def list_models(self) -> list[str]:
@@ -843,8 +836,8 @@ class OpenAIProvider(LLMProvider):
 
         # Check cache first (15 minute expiration)
         if (
-            self._cached_models is not None and
-            current_time - self._last_model_list_time < 900  # 15 minutes
+            self._cached_models is not None
+            and current_time - self._last_model_list_time < 900  # 15 minutes
         ):
             logger.debug(f"Returning cached OpenAI model list ({len(self._cached_models)} models)")
             return self._cached_models
@@ -856,10 +849,7 @@ class OpenAIProvider(LLMProvider):
 
             # Filter to chat-compatible models
             all_models = [model.id for model in response.data]
-            chat_models = [
-                model for model in all_models
-                if model.startswith(("gpt-", "text-"))
-            ]
+            chat_models = [model for model in all_models if model.startswith(("gpt-", "text-"))]
 
             # Sort models by preference (GPT-4 first, then by name)
             def model_sort_key(model_name: str) -> tuple[int, str]:
@@ -999,9 +989,7 @@ class OpenAIProvider(LLMProvider):
             is_healthy = len(models) > 0
 
             if is_healthy:
-                logger.debug(
-                    f"OpenAI health check passed: {len(models)} models available"
-                )
+                logger.debug(f"OpenAI health check passed: {len(models)} models available")
             else:
                 logger.warning(
                     "OpenAI health check failed: No models available. "
@@ -1048,10 +1036,7 @@ class OpenAIProvider(LLMProvider):
                     openai_messages.append(msg)
                 else:
                     # Convert Message object to OpenAI format
-                    openai_messages.append({
-                        "role": msg.role,
-                        "content": msg.content
-                    })
+                    openai_messages.append({"role": msg.role, "content": msg.content})
             except Exception as e:
                 raise ValueError(f"Invalid message at index {i}: {e}") from e
 

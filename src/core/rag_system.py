@@ -197,7 +197,7 @@ class RAGSystem:
             "total_queries": 0,
             "cache_hits": 0,
             "avg_retrieval_time_ms": 0.0,
-            "successful_retrievals": 0
+            "successful_retrievals": 0,
         }
 
         logger.info("RAGSystem initialized")
@@ -206,7 +206,7 @@ class RAGSystem:
         self,
         query: str,
         conversation_history: list[Message] | None = None,
-        custom_config: RAGConfig | None = None
+        custom_config: RAGConfig | None = None,
     ) -> RetrievalContext:
         """Retrieve relevant context for a query.
 
@@ -264,8 +264,7 @@ class RAGSystem:
 
             try:
                 memories = await asyncio.wait_for(
-                    retrieval_task,
-                    timeout=config.retrieval_timeout_ms / 1000
+                    retrieval_task, timeout=config.retrieval_timeout_ms / 1000
                 )
             except asyncio.TimeoutError:
                 logger.warning(f"Retrieval timed out for query: {query[:50]}...")
@@ -284,8 +283,8 @@ class RAGSystem:
                 metadata={
                     "enhanced_query": enhanced_query,
                     "config": config.__dict__,
-                    "timestamp": datetime.now().isoformat()
-                }
+                    "timestamp": datetime.now().isoformat(),
+                },
             )
 
             # Calculate relevance scores
@@ -302,7 +301,9 @@ class RAGSystem:
             self._retrieval_stats["successful_retrievals"] += 1
             self._update_avg_retrieval_time(retrieval_time)
 
-            logger.info(f"Retrieved {len(memories)} memories in {retrieval_time:.1f}ms for query: {query[:50]}...")
+            logger.info(
+                f"Retrieved {len(memories)} memories in {retrieval_time:.1f}ms for query: {query[:50]}..."
+            )
 
             return context
 
@@ -316,14 +317,11 @@ class RAGSystem:
                 total_retrieved=0,
                 retrieval_time_ms=(datetime.now() - start_time).total_seconds() * 1000,
                 reasoning="Retrieval failed due to system error",
-                metadata={"error": str(e)}
+                metadata={"error": str(e)},
             )
 
     async def enhance_prompt(
-        self,
-        original_prompt: str,
-        context: RetrievalContext,
-        system_prompt: str | None = None
+        self, original_prompt: str, context: RetrievalContext, system_prompt: str | None = None
     ) -> str:
         """Enhance prompt with retrieved context.
 
@@ -401,7 +399,7 @@ Please provide a response that takes into account the relevant context above."""
         conversation_history: list[Message] | None = None,
         llm_provider=None,
         model: str = "",
-        system_prompt: str | None = None
+        system_prompt: str | None = None,
     ) -> tuple[str, RetrievalContext]:
         """Generate RAG-enhanced response.
 
@@ -476,17 +474,11 @@ Please provide a response that takes into account the relevant context above."""
                 messages.append(Message(role="user", content=query))
 
             # Generate response
-            response = await llm_provider.complete(
-                messages=messages,
-                model=model,
-                temperature=0.7
-            )
+            response = await llm_provider.complete(messages=messages, model=model, temperature=0.7)
 
             # Add citations if enabled
             if self.config.cite_sources and context.memories:
-                response_with_citations = await self._add_citations(
-                    response.content, context
-                )
+                response_with_citations = await self._add_citations(response.content, context)
                 response.content = response_with_citations
 
             logger.info(f"Generated RAG response using {len(context.memories)} memories")
@@ -495,17 +487,18 @@ Please provide a response that takes into account the relevant context above."""
 
         except Exception as e:
             logger.error(f"RAG response generation failed: {e}")
-            return f"I apologize, but I encountered an error while generating a response: {e}", RetrievalContext(
-                memories=[],
-                query=query,
-                reasoning="Error during response generation",
-                metadata={"error": str(e)}
+            return (
+                f"I apologize, but I encountered an error while generating a response: {e}",
+                RetrievalContext(
+                    memories=[],
+                    query=query,
+                    reasoning="Error during response generation",
+                    metadata={"error": str(e)},
+                ),
             )
 
     async def _build_enhanced_query(
-        self,
-        query: str,
-        conversation_history: list[Message] | None
+        self, query: str, conversation_history: list[Message] | None
     ) -> str:
         """Build enhanced query with conversation context.
 
@@ -579,12 +572,13 @@ Please provide a response that takes into account the relevant context above."""
                 query=query,
                 memory_types=[MemoryType.LONG_TERM],
                 limit=5,  # Get top 5 long-term memories first
-                threshold=0.2  # Lower threshold for better recall
+                threshold=0.2,  # Lower threshold for better recall
             )
 
             # Filter for actual personal info
             personal_info_memories = [
-                mem for mem in personal_memories
+                mem
+                for mem in personal_memories
                 if mem.metadata and mem.metadata.get("type") == "personal_info"
             ]
 
@@ -598,7 +592,7 @@ Please provide a response that takes into account the relevant context above."""
                 query=query,
                 memory_types=config.memory_types,
                 limit=remaining_limit + 5,  # Get a few extra to account for overlap
-                threshold=config.min_relevance_threshold
+                threshold=config.min_relevance_threshold,
             )
 
             # Combine, avoiding duplicates and contradictions
@@ -617,13 +611,14 @@ Please provide a response that takes into account the relevant context above."""
                     "i don't have any recollection",
                     "since our conversation just started",
                     "i'm not aware of your name",
-                    "i don't know your name"
+                    "i don't know your name",
                 ]
 
                 return any(phrase in content_lower for phrase in contradictory_phrases)
 
             unique_other_memories = [
-                mem for mem in other_memories
+                mem
+                for mem in other_memories
                 if mem.id not in seen_ids and not is_contradictory_memory(mem)
             ]
 
@@ -635,7 +630,7 @@ Please provide a response that takes into account the relevant context above."""
 
             for memory in memories:
                 # Skip if below threshold
-                if hasattr(memory, 'relevance_score'):
+                if hasattr(memory, "relevance_score"):
                     if memory.relevance_score < config.min_relevance_threshold:
                         continue
 
@@ -653,7 +648,7 @@ Please provide a response that takes into account the relevant context above."""
             def memory_ranking_score(memory):
                 base_importance = memory.importance
                 recency_score = memory.created_at.timestamp()
-                relevance_score = getattr(memory, 'relevance_score', 0.5)
+                relevance_score = getattr(memory, "relevance_score", 0.5)
 
                 # Major boost for personal information
                 if memory.metadata and memory.metadata.get("type") == "personal_info":
@@ -664,7 +659,7 @@ Please provide a response that takes into account the relevant context above."""
 
             filtered_memories.sort(key=memory_ranking_score, reverse=True)
 
-            return filtered_memories[:config.max_memories]
+            return filtered_memories[: config.max_memories]
 
         except Exception as e:
             logger.error(f"Memory retrieval failed: {e}")
@@ -724,7 +719,7 @@ Please provide a response that takes into account the relevant context above."""
                 MemoryType.LONG_TERM: 0.1,
                 MemoryType.SEMANTIC: 0.08,
                 MemoryType.EPISODIC: 0.06,
-                MemoryType.SHORT_TERM: 0.04
+                MemoryType.SHORT_TERM: 0.04,
             }
             score += type_scores.get(memory.memory_type, 0.05)
 
@@ -921,7 +916,7 @@ Please provide a response that takes into account the relevant context above."""
             importance=min(1.0, memory.importance + temporal_boost),
             metadata=memory.metadata,
             created_at=memory.created_at,
-            accessed_at=memory.accessed_at
+            accessed_at=memory.accessed_at,
         )
 
         return adjusted_memory
@@ -958,7 +953,9 @@ Please provide a response that takes into account the relevant context above."""
 
             for existing in deduplicated:
                 # Simple content similarity check
-                similarity = await self._calculate_content_similarity(memory.content, existing.content)
+                similarity = await self._calculate_content_similarity(
+                    memory.content, existing.content
+                )
 
                 if similarity > 0.9:  # Very similar content
                     is_duplicate = True
@@ -1042,13 +1039,15 @@ Please provide a response that takes into account the relevant context above."""
         """
         cache_hit_rate = 0.0
         if self._retrieval_stats["total_queries"] > 0:
-            cache_hit_rate = self._retrieval_stats["cache_hits"] / self._retrieval_stats["total_queries"]
+            cache_hit_rate = (
+                self._retrieval_stats["cache_hits"] / self._retrieval_stats["total_queries"]
+            )
 
         return {
             **self._retrieval_stats,
             "cache_hit_rate": cache_hit_rate,
             "cache_size": len(self._retrieval_cache),
-            "config": self.config.__dict__
+            "config": self.config.__dict__,
         }
 
     def clear_cache(self):
