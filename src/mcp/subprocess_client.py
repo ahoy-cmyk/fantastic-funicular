@@ -28,6 +28,7 @@ class MCPSubprocessClient(MCPServer):
         self.tools: dict[str, MCPTool] = {}
         self._connected = False
         self._execution_lock = asyncio.Lock()
+        self._request_id = 0
 
     async def connect(self) -> bool:
         """Connect to the MCP server via subprocess."""
@@ -126,11 +127,13 @@ class MCPSubprocessClient(MCPServer):
                         success=False, result=None, error=f"Tool '{tool_name}' not found"
                     )
 
-                # Send tool execution request
+                # Send tool execution request with unique ID
+                self._request_id += 1
+                request_id = self._request_id
                 await self._send_message(
                     {
                         "jsonrpc": "2.0",
-                        "id": 2,
+                        "id": request_id,
                         "method": "tools/call",
                         "params": {"name": tool_name, "arguments": parameters},
                     }
@@ -176,9 +179,10 @@ class MCPSubprocessClient(MCPServer):
     async def _load_tools(self):
         """Load available tools from the server."""
         try:
-            # Request tool list
+            # Request tool list with unique ID
+            self._request_id += 1
             await self._send_message(
-                {"jsonrpc": "2.0", "id": 3, "method": "tools/list", "params": {}}
+                {"jsonrpc": "2.0", "id": self._request_id, "method": "tools/list", "params": {}}
             )
 
             # Receive tool list
