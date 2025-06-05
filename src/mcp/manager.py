@@ -192,8 +192,19 @@ class MCPManager:
 
             server = self.servers[server_name]
 
-            # Execute tool
-            response = await server.execute_tool(actual_tool_name, parameters)
+            # Execute tool with timeout
+            logger.debug(f"Executing tool '{actual_tool_name}' on server '{server_name}' with params: {parameters}")
+            try:
+                response = await asyncio.wait_for(
+                    server.execute_tool(actual_tool_name, parameters),
+                    timeout=30.0  # 30 second timeout
+                )
+                logger.debug(f"Got response from server: success={response.success}, error={response.error}")
+            except asyncio.TimeoutError:
+                logger.error(f"Tool execution timed out for {server_name}:{actual_tool_name}")
+                return MCPResponse(
+                    success=False, result=None, error="Tool execution timed out"
+                )
 
             # Add server info to metadata
             if response.metadata is None:

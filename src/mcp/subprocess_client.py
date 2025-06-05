@@ -27,6 +27,7 @@ class MCPSubprocessClient(MCPServer):
         self.process: asyncio.subprocess.Process | None = None
         self.tools: dict[str, MCPTool] = {}
         self._connected = False
+        self._execution_lock = asyncio.Lock()
 
     async def connect(self) -> bool:
         """Connect to the MCP server via subprocess."""
@@ -115,49 +116,50 @@ class MCPSubprocessClient(MCPServer):
 
     async def execute_tool(self, tool_name: str, parameters: dict[str, Any]) -> MCPResponse:
         """Execute a tool on the server."""
-        try:
-            if not self._connected:
-                return MCPResponse(success=False, result=None, error="Not connected to MCP server")
+        async with self._execution_lock:  # Prevent concurrent executions
+            try:
+                if not self._connected:
+                    return MCPResponse(success=False, result=None, error="Not connected to MCP server")
 
-            if tool_name not in self.tools:
-                return MCPResponse(
-                    success=False, result=None, error=f"Tool '{tool_name}' not found"
+                if tool_name not in self.tools:
+                    return MCPResponse(
+                        success=False, result=None, error=f"Tool '{tool_name}' not found"
+                    )
+
+                # Send tool execution request
+                await self._send_message(
+                    {
+                        "jsonrpc": "2.0",
+                        "id": 2,
+                        "method": "tools/call",
+                        "params": {"name": tool_name, "arguments": parameters},
+                    }
                 )
 
-            # Send tool execution request
-            await self._send_message(
-                {
-                    "jsonrpc": "2.0",
-                    "id": 2,
-                    "method": "tools/call",
-                    "params": {"name": tool_name, "arguments": parameters},
-                }
-            )
+                # Wait for response
+                response = await self._receive_message()
+                logger.debug(f"Tool execution response: {response}")
 
-            # Wait for response
-            response = await self._receive_message()
-            logger.debug(f"Tool execution response: {response}")
+                if response and "result" in response:
+                    result = response["result"]
+                    return MCPResponse(
+                        success=True,
+                        result=result.get("content", []),
+                        error=None,
+                        metadata={"toolCallId": result.get("toolCallId")},
+                    )
+                elif response and "error" in response:
+                    error = response["error"]
+                    error_msg = f"{error.get('code', 'Unknown')}: {error.get('message', 'Unknown error')}"
+                    return MCPResponse(success=False, result=None, error=error_msg)
+                else:
+                    return MCPResponse(
+                        success=False, result=None, error="Invalid response from MCP server"
+                    )
 
-            if response and "result" in response:
-                result = response["result"]
-                return MCPResponse(
-                    success=True,
-                    result=result.get("content", []),
-                    error=None,
-                    metadata={"toolCallId": result.get("toolCallId")},
-                )
-            elif response and "error" in response:
-                error = response["error"]
-                error_msg = f"{error.get('code', 'Unknown')}: {error.get('message', 'Unknown error')}"
-                return MCPResponse(success=False, result=None, error=error_msg)
-            else:
-                return MCPResponse(
-                    success=False, result=None, error="Invalid response from MCP server"
-                )
-
-        except Exception as e:
-            logger.error(f"Error executing tool '{tool_name}': {e}")
-            return MCPResponse(success=False, result=None, error=str(e))
+            except Exception as e:
+                logger.error(f"Error executing tool '{tool_name}': {e}")
+                return MCPResponse(success=False, result=None, error=str(e))
 
     async def health_check(self) -> bool:
         """Check if the server is healthy."""
