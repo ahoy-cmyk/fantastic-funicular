@@ -65,21 +65,21 @@ logger = setup_logger(__name__)
 
 class ChatListItem(TwoLineListItem):
     """Custom list item for chat conversation management with touch interaction.
-    
+
     This widget extends TwoLineListItem to provide:
     - Visual conversation preview with truncated titles
     - Long press detection for context menu actions
     - Formatted timestamp display for conversation aging
     - Callback-based interaction pattern for loose coupling
-    
+
     Touch Interaction Pattern:
         - Single tap: Select conversation
         - Long press (1 second): Show delete confirmation
         - Touch cancellation: Proper event handling
-    
+
     The widget demonstrates advanced Kivy touch handling with
     proper event propagation and timing-based gesture recognition.
-    
+
     Args:
         conversation_data (dict): Conversation metadata and content
         on_select_callback (callable): Function called on conversation selection
@@ -141,22 +141,22 @@ class ChatListItem(TwoLineListItem):
 
 class MemoryContextCard(MDCard):
     """Memory context display card with auto-hide functionality.
-    
+
     This widget provides visual feedback about memory system activity:
     - Shows relevant memories retrieved for current conversation context
     - Automatically appears when memories are found and hides after timeout
     - Provides truncated memory preview with relevance indication
     - Uses Material Design elevation and theming for professional appearance
-    
+
     Design Pattern:
         Implements a non-intrusive information display that enhances
         user understanding of AI reasoning without cluttering the interface.
-        
+
     Memory Display Strategy:
         - Shows top 3 most relevant memories
         - Truncates long content for readability
         - Provides context about memory retrieval success/failure
-        
+
     The card uses a subtle color scheme and animation to avoid
     distracting from the main conversation flow while still
     providing valuable insight into the AI's knowledge retrieval.
@@ -198,7 +198,7 @@ class MemoryContextCard(MDCard):
             return
 
         context_text = "Relevant memories:\n"
-        for i, memory in enumerate(memories[:3]):  # Show top 3
+        for _i, memory in enumerate(memories[:3]):  # Show top 3
             content = memory.content[:60] + "..." if len(memory.content) > 60 else memory.content
             context_text += f"• {content}\n"
 
@@ -207,45 +207,45 @@ class MemoryContextCard(MDCard):
 
 class EnhancedChatScreen(MDScreen):
     """Primary chat interface implementing advanced conversational AI patterns.
-    
+
     This screen serves as the main user interaction point, demonstrating:
-    
+
     Navigation Architecture:
         - MDNavigationDrawer for conversation list with smooth animations
         - Main content area with adaptive message display
         - Responsive toolbar with contextual action buttons
         - Proper drawer state management and gesture handling
-    
+
     Message Flow Management:
         - Real-time streaming with batched UI updates for performance
         - Thread-safe async operations using Clock.schedule_once pattern
         - Message persistence with automatic conversation saving
         - Error handling with graceful degradation
-    
+
     Memory System Integration:
         - Intelligent memory classification and storage
         - Contextual memory retrieval for enhanced AI responses
         - Visual memory context display with auto-hide
         - Support for memory-enhanced prompt engineering
-    
+
     File Upload & RAG Support:
         - Multi-format file processing (PDF, text, code files)
         - Automatic content extraction and memory integration
         - File size validation and error handling
         - Background processing with progress feedback
-    
+
     Performance Considerations:
         - Shared resource injection to avoid duplicate initialization
         - Conversation loading with pagination for large chat histories
         - Optimized message rendering with responsive width calculation
         - Background thread isolation for all blocking operations
-    
+
     State Management:
         - Proper cleanup on screen transitions
         - Shutdown flag to prevent operations during app closure
         - Loading states to prevent race conditions
         - Resource sharing between app sessions
-    
+
     Accessibility Features:
         - Keyboard navigation with custom Enter key handling
         - Screen reader compatible widget structure
@@ -279,7 +279,7 @@ class EnhancedChatScreen(MDScreen):
 
         # Shutdown flag to prevent operations after app closure
         self._is_shutting_down = False
-        
+
         # Performance optimization flags
         self._pending_scroll = False
 
@@ -310,33 +310,33 @@ class EnhancedChatScreen(MDScreen):
 
     def build_ui(self):
         """Build the enhanced chat interface using Material Design patterns.
-        
+
         This method creates a sophisticated UI structure:
-        
+
         Layout Hierarchy:
             1. Navigation drawer (conversation list) with gesture support
             2. Main content area with toolbar and message display
             3. Input area with multi-line text field and send button
             4. Memory context card with fade-in/out animation
-            
+
         Design Principles:
             - Material Design 3 specifications for spacing and elevation
             - Responsive layout that adapts to different screen sizes
             - Professional color scheme with proper contrast ratios
             - Smooth animations and transitions for better UX
-            
+
         Navigation Drawer Features:
             - Gesture-enabled swiping with proper close-on-click behavior
             - Smooth cubic transitions for opening/closing
             - Management buttons for conversation operations
             - Scrollable conversation list with custom item widgets
-            
+
         Toolbar Configuration:
             - Dynamic title showing current model and conversation
             - Left navigation menu button for drawer control
             - Right action items for quick access to key features
             - Proper icon selection following Material Design guidelines
-            
+
         The layout uses a layered approach where the main content
         serves as background and the drawer appears on top with
         proper elevation and shadowing.
@@ -402,7 +402,7 @@ class EnhancedChatScreen(MDScreen):
         self.toolbar = MDTopAppBar(title=f"Chat - {provider_info}", elevation=2)
 
         # Add menu button to open drawer
-        menu_btn = MDIconButton(icon="menu", on_release=lambda x: self.nav_drawer.set_state("open"))
+        MDIconButton(icon="menu", on_release=lambda x: self.nav_drawer.set_state("open"))
         self.toolbar.left_action_items = [["menu", lambda x: self.nav_drawer.set_state("open")]]
 
         # Add action buttons to toolbar
@@ -491,24 +491,24 @@ class EnhancedChatScreen(MDScreen):
 
     def _on_focus_change(self, instance, focus):
         """Handle focus changes to set up advanced keyboard event handling.
-        
+
         This method demonstrates proper Kivy keyboard event management:
-        
+
         Event Binding Strategy:
             - Bind keyboard events only when text field is focused
             - Unbind when focus is lost to prevent event conflicts
             - Use flag to track binding state for proper cleanup
-            
+
         Keyboard Interaction Features:
             - Enter key sends message (standard chat behavior)
             - Shift+Enter creates new line (advanced text editing)
             - Proper event propagation and consumption
-            
+
         Error Handling:
             - Catches keyboard binding errors gracefully
             - Maintains functionality even if advanced features fail
             - Logs errors for debugging without disrupting UX
-            
+
         The pattern ensures keyboard events are properly managed
         throughout the widget lifecycle.
         """
@@ -531,29 +531,29 @@ class EnhancedChatScreen(MDScreen):
 
     def _on_keyboard_down(self, window, keycode, scancode, text, modifiers):
         """Advanced keyboard event handling for enhanced text input.
-        
+
         This method implements sophisticated keyboard interaction:
-        
+
         Event Processing:
             - Only processes events when input field is focused
             - Distinguishes between Enter and Shift+Enter combinations
             - Properly consumes events to prevent default handling
-            
+
         Interaction Patterns:
             - Enter alone: Send message (common chat application behavior)
             - Shift+Enter: Insert newline (power user text editing)
             - Other keys: Allow normal text input handling
-            
+
         Event Flow Control:
             - Returns True when event is consumed (prevents further processing)
             - Returns False for normal key handling by the text widget
             - Maintains proper event chain for complex input scenarios
-            
+
         Error Safety:
             - Wrapped in try/catch to prevent keyboard event crashes
             - Graceful fallback to standard behavior on error
             - Maintains application stability during edge cases
-            
+
         The implementation follows Kivy best practices for keyboard
         event handling while providing enhanced user experience.
         """
@@ -578,27 +578,27 @@ class EnhancedChatScreen(MDScreen):
 
     def _is_memory_command(self, message_text: str) -> bool:
         """Intelligent detection of memory-related user commands.
-        
+
         This method analyzes user input to determine if it contains
         explicit memory storage intent, allowing for contextual UI feedback.
-        
+
         Detection Patterns:
             - Direct memory commands ("remember", "note that")
             - Identity statements ("my name is", "I am")
             - Storage requests ("keep in mind", "save this")
             - Personal information disclosure patterns
-            
+
         Use Cases:
             - Provides contextual placeholder text ("..." vs "Thinking...")
             - Could trigger enhanced memory processing
             - Enables smart memory importance weighting
             - Supports user intent recognition
-            
+
         Natural Language Processing:
             - Case-insensitive pattern matching
             - Common linguistic patterns for memory intent
             - Expandable pattern list for different languages
-            
+
         The detection helps the UI provide more contextual feedback
         about memory system activity.
         """
@@ -625,28 +625,28 @@ class EnhancedChatScreen(MDScreen):
 
     def _memory_error_callback(self, operation: str, error: str):
         """Centralized error handling for memory system operations.
-        
+
         This callback provides consistent error handling across all
         memory operations within the chat interface.
-        
+
         Error Processing:
             - Logs detailed error information for debugging
             - Provides user-friendly notifications
             - Truncates long error messages for UI display
             - Maintains operation context for better debugging
-            
+
         User Experience:
             - Non-intrusive warning notifications
             - Doesn't interrupt conversation flow
             - Provides enough context for user understanding
             - Allows continued operation despite memory errors
-            
+
         Error Categories:
             - Memory storage failures
             - Memory retrieval timeouts
             - Memory classification errors
             - Database connection issues
-            
+
         The centralized approach ensures consistent error handling
         and user experience across all memory-related operations.
         """
@@ -655,31 +655,31 @@ class EnhancedChatScreen(MDScreen):
 
     async def _get_recent_conversation_context(self) -> list[str]:
         """Retrieve recent conversation history for memory context analysis.
-        
+
         This method extracts recent conversation messages to provide
         context for intelligent memory classification and retrieval.
-        
+
         Context Extraction:
             - Retrieves last 5 messages from current session
             - Extracts content from message objects safely
             - Handles missing or malformed message data
-            
+
         Use Cases:
             - Enhances memory classification with conversation context
             - Improves memory retrieval relevance
             - Supports contextual AI response generation
             - Enables conversation flow analysis
-            
+
         Error Handling:
             - Returns empty list if session or messages unavailable
             - Handles database connection errors gracefully
             - Maintains functionality even with missing context
-            
+
         Performance Optimization:
             - Limits to recent messages to avoid excessive processing
             - Caches context within the message processing cycle
             - Minimizes database queries through efficient limiting
-            
+
         The context helps the memory system make more intelligent
         decisions about information classification and storage.
         """
@@ -704,28 +704,28 @@ class EnhancedChatScreen(MDScreen):
 
     def _send_message_wrapper(self, *args):
         """Thread-safe wrapper for message sending with immediate UI feedback.
-        
+
         This method implements the producer-consumer pattern for message handling:
-        
+
         Immediate UI Operations (Main Thread):
             1. Clear input field for immediate feedback
             2. Add user message bubble to conversation
             3. Create assistant placeholder with contextual text
-            
+
         Background Processing (Worker Thread):
             1. Memory retrieval and context analysis
             2. LLM communication with streaming response
             3. Memory storage of conversation content
-            
+
         UI Update Strategy:
             Uses Kivy's Clock.schedule_once to safely update the UI
             from background threads, ensuring thread safety and
             preventing race conditions.
-            
+
         Error Handling:
             Graceful fallback with user notification if message
             sending fails, maintaining application stability.
-            
+
         The wrapper pattern allows the main async logic to be
         isolated while providing immediate user feedback.
         """
@@ -762,35 +762,35 @@ class EnhancedChatScreen(MDScreen):
     @safe_ui_operation
     async def _send_message_async(self, message_text, assistant_widget):
         """Asynchronous message processing with memory integration and streaming.
-        
+
         This method implements the complete message lifecycle:
-        
+
         Memory Retrieval Phase:
             - Query memory system for relevant context
             - Display memory context if found
             - Apply intelligent memory classification
-            
+
         LLM Communication Phase:
             - Send message with RAG-enhanced context
             - Stream response chunks for real-time display
             - Handle streaming errors gracefully
-            
+
         Memory Storage Phase:
             - Store user message with contextual metadata
             - Store assistant response with importance weighting
             - Use intelligent analysis for automatic classification
-            
+
         Performance Optimizations:
             - Batched UI updates (every 3 chunks) to reduce overhead
             - Shutdown detection to prevent operations during app exit
             - Memory context auto-hide to maintain focus
             - Conversation title auto-generation from first message
-            
+
         Error Recovery:
             - Individual phase failures don't stop the entire process
             - User receives feedback about any failures
             - Application continues functioning with degraded features
-            
+
         The @safe_ui_operation decorator provides additional error
         handling and ensures proper resource cleanup.
         """
@@ -1012,29 +1012,29 @@ class EnhancedChatScreen(MDScreen):
 
     def _show_memory_context(self, memories):
         """Display memory context with smooth animation and auto-hide.
-        
+
         This method provides visual feedback about memory retrieval:
-        
+
         Animation Strategy:
             - Smooth fade-in with height expansion
             - Temporary display with automatic dismissal
             - Non-intrusive placement above message area
-            
+
         Content Display:
             - Shows relevant retrieved memories
             - Provides context about AI reasoning
             - Enhances user understanding of responses
-            
+
         Timing Control:
             - 5-second display duration for adequate reading time
             - Auto-hide to maintain conversation focus
             - Smooth transitions to avoid jarring changes
-            
+
         User Experience:
             - Informative but not distracting
             - Provides insight into AI thought process
             - Maintains conversation flow priority
-            
+
         The display helps users understand how the AI is using
         stored memories to inform its responses.
         """
@@ -1047,19 +1047,19 @@ class EnhancedChatScreen(MDScreen):
 
     def _hide_memory_context(self):
         """Hide memory context panel with smooth animation.
-        
+
         This method gracefully removes the memory context display:
-        
+
         Animation Features:
             - Smooth fade-out with height collapse
             - Returns display space to conversation area
             - Maintains visual continuity during transition
-            
+
         State Management:
             - Resets opacity and height for future displays
             - Cleans up temporary visual elements
             - Prepares for next memory context display cycle
-            
+
         The hiding mechanism ensures the memory context doesn't
         permanently clutter the interface while still providing
         valuable temporary insight into AI reasoning.
@@ -1069,35 +1069,35 @@ class EnhancedChatScreen(MDScreen):
 
     def _create_model_status_card(self):
         """Create an informative model status card with interactive controls.
-        
+
         This method builds a comprehensive status display featuring:
-        
+
         Information Display:
             - Current AI model and provider information
             - RAG (Retrieval-Augmented Generation) status
             - Dynamic updates based on configuration changes
-            
+
         Interactive Elements:
             - Quick model switching button
             - Status refresh capability
             - Visual indicators for system state
-            
+
         Design Features:
             - Material Design card styling with appropriate elevation
             - Professional color scheme with themed icons
             - Responsive layout for different screen sizes
             - Clear typography hierarchy for information scanning
-            
+
         Real-time Updates:
             - Reflects current model configuration
             - Shows RAG system status changes
             - Updates automatically when settings change
-            
+
         User Experience:
             - Provides quick access to important system information
             - Enables rapid model switching workflow
             - Maintains awareness of AI system configuration
-            
+
         The card serves as a control center for AI system status
         and quick configuration changes.
         """
@@ -1111,10 +1111,10 @@ class EnhancedChatScreen(MDScreen):
             md_bg_color=THEME_COLORS.get("card_bg", [0.2, 0.2, 0.2, 1]),
             radius=[dp(8), dp(8), dp(8), dp(8)],
         )
-        
+
         # Model info layout
         info_layout = MDBoxLayout(orientation="vertical", adaptive_height=True)
-        
+
         # Current model label
         self.current_model_label = MDLabel(
             text=f"Model: {self._get_provider_model_info()}",
@@ -1123,7 +1123,7 @@ class EnhancedChatScreen(MDScreen):
             adaptive_height=True,
             bold=True
         )
-        
+
         # RAG status label
         rag_status = "RAG: Enabled" if getattr(self.chat_manager, 'rag_enabled', True) else "RAG: Disabled"
         self.rag_status_label = MDLabel(
@@ -1132,10 +1132,10 @@ class EnhancedChatScreen(MDScreen):
             theme_text_color="Primary" if getattr(self.chat_manager, 'rag_enabled', True) else "Secondary",
             adaptive_height=True
         )
-        
+
         info_layout.add_widget(self.current_model_label)
         info_layout.add_widget(self.rag_status_label)
-        
+
         # Quick actions
         actions_layout = MDBoxLayout(
             orientation="horizontal",
@@ -1144,7 +1144,7 @@ class EnhancedChatScreen(MDScreen):
             size_hint_x=None,
             width=dp(120)
         )
-        
+
         # Switch model button
         switch_button = MDIconButton(
             icon="swap-horizontal",
@@ -1152,7 +1152,7 @@ class EnhancedChatScreen(MDScreen):
             theme_icon_color="Custom",
             icon_color=THEME_COLORS.get("primary", [0.2, 0.6, 1, 1])
         )
-        
+
         # Refresh model info button
         refresh_button = MDIconButton(
             icon="refresh",
@@ -1160,42 +1160,42 @@ class EnhancedChatScreen(MDScreen):
             theme_icon_color="Custom",
             icon_color=THEME_COLORS.get("primary", [0.2, 0.6, 1, 1])
         )
-        
+
         actions_layout.add_widget(switch_button)
         actions_layout.add_widget(refresh_button)
-        
+
         model_card.add_widget(info_layout)
         model_card.add_widget(actions_layout)
-        
+
         return model_card
-    
+
     def _refresh_model_status(self):
         """Refresh model status display with current system state.
-        
+
         This method updates all model-related UI elements:
-        
+
         Update Operations:
             - Retrieves current model and provider information
             - Updates RAG system status display
             - Refreshes toolbar title with current configuration
             - Synchronizes all UI elements with system state
-            
+
         Error Handling:
             - Graceful handling of missing model information
             - Fallback display for disconnected providers
             - Logging for debugging configuration issues
-            
+
         UI Synchronization:
             - Ensures consistency across multiple display locations
             - Updates both status card and toolbar simultaneously
             - Maintains visual coherence throughout interface
-            
+
         Use Cases:
             - After model switching operations
             - During provider reconnection
             - When returning to chat screen from settings
             - For periodic status verification
-            
+
         The refresh ensures users always see accurate system
         configuration regardless of changes made elsewhere.
         """
@@ -1203,19 +1203,19 @@ class EnhancedChatScreen(MDScreen):
             # Update model info
             model_info = self._get_provider_model_info()
             self.current_model_label.text = f"Model: {model_info}"
-            
+
             # Update RAG status
             rag_enabled = getattr(self.chat_manager, 'rag_enabled', True)
             rag_status = "RAG: Enabled" if rag_enabled else "RAG: Disabled"
             self.rag_status_label.text = rag_status
             self.rag_status_label.theme_text_color = "Primary" if rag_enabled else "Secondary"
-            
+
             # Update toolbar title as well
             if hasattr(self, 'toolbar'):
                 self.toolbar.title = f"Chat - {model_info}"
-                
+
             logger.info(f"Refreshed model status: {model_info}, RAG: {rag_enabled}")
-            
+
         except Exception as e:
             logger.error(f"Failed to refresh model status: {e}")
 
@@ -1304,17 +1304,17 @@ class EnhancedChatScreen(MDScreen):
     def _go_to_settings(self):
         """Navigate to settings screen."""
         self.manager.current = "settings"
-    
+
     def _go_to_file_management(self):
         """Navigate to file management screen."""
         self.manager.current = "file_management"
-    
+
     @safe_dialog_operation
     def _show_file_upload(self, *args):
         """Display comprehensive file upload dialog for RAG document processing.
-        
+
         This method creates a sophisticated file upload interface:
-        
+
         Supported Formats:
             - Text files (.txt, .md, .json)
             - Programming files (.py, .js, .java, .cpp, .c)
@@ -1322,28 +1322,28 @@ class EnhancedChatScreen(MDScreen):
             - Data files (.csv)
             - Office documents (.docx)
             - PDF documents (.pdf)
-            
+
         File Manager Integration:
             - Native file browser with filtering
             - Cross-platform file selection
             - Proper file validation and error handling
-            
+
         User Experience:
             - Clear format support information
             - Intuitive file browsing workflow
             - Progress feedback during processing
-            
+
         Processing Pipeline:
             - File size validation (10MB limit)
             - Format-specific content extraction
             - Memory system integration
             - Error handling with user feedback
-            
+
         The @safe_dialog_operation decorator ensures proper
         dialog lifecycle management and error handling.
         """
         from kivymd.uix.filemanager import MDFileManager
-        
+
         def file_manager_open():
             self.file_manager = MDFileManager(
                 exit_manager=self.exit_file_manager,
@@ -1351,7 +1351,7 @@ class EnhancedChatScreen(MDScreen):
                 ext=['.txt', '.pdf', '.md', '.json', '.py', '.js', '.java', '.cpp', '.c', '.html', '.xml', '.csv', '.docx']
             )
             self.file_manager.show('/')  # Start from root directory
-        
+
         # Create file upload dialog
         content = MDBoxLayout(
             orientation="vertical",
@@ -1359,24 +1359,24 @@ class EnhancedChatScreen(MDScreen):
             size_hint_y=None,
             height=dp(200)
         )
-        
+
         info_label = MDLabel(
             text="Upload a file to add its content to the RAG memory system.\n"
                  "Supported formats: txt, pdf, md, json, py, js, java, cpp, c, html, xml, csv, docx",
             theme_text_color="Primary",
             adaptive_height=True
         )
-        
+
         browse_button = MDRaisedButton(
             text="Browse Files",
             size_hint_y=None,
             height=dp(40),
             on_release=lambda x: (dialog.dismiss(), file_manager_open())
         )
-        
+
         content.add_widget(info_label)
         content.add_widget(browse_button)
-        
+
         dialog = MDDialog(
             title="Upload File for RAG",
             type="custom",
@@ -1388,82 +1388,82 @@ class EnhancedChatScreen(MDScreen):
                 )
             ]
         )
-        
+
         dialog.open()
-    
+
     def exit_file_manager(self, *args):
         """Close file manager with proper cleanup.
-        
+
         This method handles file manager closure:
-        
+
         Cleanup Operations:
             - Closes file manager widget
             - Releases system resources
             - Returns focus to main interface
-            
+
         State Management:
             - Resets file selection state
             - Clears temporary file references
             - Prepares for next file operation
-            
+
         The method ensures proper resource management
         when file selection is cancelled or completed.
         """
         self.file_manager.close()
-    
+
     def select_file_path(self, path):
         """Process selected file for RAG memory integration.
-        
+
         This method handles the complete file processing pipeline:
-        
+
         File Processing Steps:
             1. File validation (size, format, accessibility)
             2. Content extraction based on file type
             3. Memory system integration with metadata
             4. User feedback and error handling
-            
+
         Content Extraction:
             - PDF text extraction using pypdf
             - UTF-8 text file reading with encoding detection
             - Format-specific processing for different file types
             - Error recovery for corrupted or invalid files
-            
+
         Memory Integration:
             - Stores file content with rich metadata
             - Includes file information for provenance tracking
             - Enables source attribution in AI responses
             - Supports content-based retrieval
-            
+
         Error Handling:
             - File size limits (10MB) with user notification
             - Format validation with helpful error messages
             - Encoding error recovery with fallback strategies
             - Network/storage error handling
-            
+
         User Feedback:
             - Progress indication during processing
             - Success confirmation with file details
             - Clear error messages with actionable advice
-            
+
         The processing runs in a background thread to maintain
         UI responsiveness during file operations.
         """
         self.exit_file_manager()
-        
+
         async def process_file():
             try:
                 # Read file content
                 import os
                 file_size = os.path.getsize(path)
-                
+
                 # Check file size (limit to 10MB)
                 if file_size > 10 * 1024 * 1024:
                     Clock.schedule_once(lambda dt: Notification.warning("File too large (max 10MB)"), 0)
                     return
-                
+
                 # Read file content based on extension
                 file_ext = os.path.splitext(path)[1].lower()
-                
+
                 try:
                     if file_ext == '.pdf':
                         # Extract text from PDF
@@ -1474,13 +1474,13 @@ class EnhancedChatScreen(MDScreen):
                             content += page.extract_text() + "\n"
                     else:
                         # Text-based files
-                        with open(path, 'r', encoding='utf-8') as f:
+                        with open(path, encoding='utf-8') as f:
                             content = f.read()
                 except Exception as e:
                     error_msg = f"Error reading file: {str(e)}"
                     Clock.schedule_once(lambda dt: Notification.error(error_msg), 0)
                     return
-                
+
                 # Store in memory with metadata
                 file_name = os.path.basename(path)
                 metadata = {
@@ -1490,54 +1490,54 @@ class EnhancedChatScreen(MDScreen):
                     "file_size": file_size,
                     "file_type": file_ext
                 }
-                
+
                 # Add to memory system
                 memory_id = await self.chat_manager.memory_manager.remember(
                     content=f"File content from {file_name}:\n\n{content}",
                     auto_classify=True,
                     metadata=metadata
                 )
-                
+
                 if memory_id:
                     Clock.schedule_once(lambda dt: Notification.success(f"File '{file_name}' added to RAG memory"), 0)
                     logger.info(f"Uploaded file to RAG: {file_name} ({file_size} bytes)")
                 else:
                     Clock.schedule_once(lambda dt: Notification.error("Failed to add file to memory"), 0)
-                    
+
             except Exception as e:
                 error_msg = f"Upload failed: {str(e)}"
                 logger.error(f"File upload error: {e}")
                 Clock.schedule_once(lambda dt: Notification.error(error_msg), 0)
-        
+
         # Run in thread
         def run_async():
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
             loop.run_until_complete(process_file())
             loop.close()
-        
+
         thread = threading.Thread(target=run_async)
         thread.daemon = True
         thread.start()
 
     def _schedule_load_conversations(self, dt):
         """Schedule asynchronous conversation loading in a thread-safe pattern.
-        
+
         This method demonstrates the proper Kivy pattern for background operations:
-        
+
         Threading Strategy:
             1. Create a daemon thread to prevent app hanging on exit
             2. Establish a new event loop for async operations
             3. Execute async operations in isolation
             4. Schedule UI updates on main thread via Clock
             5. Ensure proper cleanup with try/finally blocks
-            
+
         Error Handling:
             - Isolates errors to prevent UI thread crashes
             - Provides user feedback through notification system
             - Logs detailed error information for debugging
             - Maintains application stability on failure
-            
+
         The pattern allows for complex async operations while
         maintaining UI responsiveness and thread safety.
         """
@@ -1638,29 +1638,29 @@ class EnhancedChatScreen(MDScreen):
 
     def _select_conversation_wrapper(self, conversation_data):
         """Thread-safe conversation selection with loading state management.
-        
+
         This method implements a sophisticated conversation loading pattern:
-        
+
         Race Condition Prevention:
             - Loading flag prevents multiple simultaneous selections
             - Immediate UI feedback (clear messages, show loading)
             - Conversation ID assignment to prevent state conflicts
-            
+
         User Experience Optimization:
             - Immediate visual feedback with loading message
             - Drawer closure for better focus
             - Progressive loading with status updates
-            
+
         Error Recovery:
             - Validation of conversation data before processing
             - Graceful error handling with user notification
             - Proper cleanup of loading states on failure
-            
+
         Threading Pattern:
             - Background thread for database operations
             - Main thread for all UI updates
             - Proper resource cleanup in finally blocks
-            
+
         The wrapper pattern isolates complex async logic while
         providing immediate user feedback and preventing UI freezing.
         """
@@ -1827,35 +1827,35 @@ class EnhancedChatScreen(MDScreen):
 
     def _add_message_widget_sync(self, content: str, role: str, timestamp: str = None):
         """Add message widget with responsive design and theming (UI thread safe).
-        
+
         This method creates message bubbles with:
-        
+
         Responsive Design:
             - Adaptive width based on screen size (max 70% width)
             - Proper text wrapping with maximum width constraints
             - Optimal sizing for different device form factors
-            
+
         Visual Design:
             - Role-based color coding for message attribution
             - Material Design elevation and border radius
             - Consistent spacing using theme constants
             - Professional typography with proper hierarchy
-            
+
         Content Handling:
             - Multi-line text support with proper wrapping
             - Timestamp formatting with fallback handling
             - Reference storage for streaming updates
-            
+
         Accessibility:
             - Proper text contrast ratios
             - Screen reader compatible structure
             - Touch-friendly sizing
-            
+
         Auto-scrolling:
             - Automatically scrolls to newest message
             - Smooth scrolling with proper timing
             - Maintains conversation flow visibility
-            
+
         The synchronous version is safe to call from the main UI
         thread and provides immediate visual feedback.
         """
@@ -1933,27 +1933,27 @@ class EnhancedChatScreen(MDScreen):
 
     def _create_new_chat_sync(self):
         """Create new chat with thread-safe async execution.
-        
+
         This method demonstrates the async-to-sync bridge pattern
         commonly needed in Kivy applications:
-        
+
         Execution Flow:
             1. Immediate return to prevent UI blocking
             2. Background thread creation with new event loop
             3. Async chat creation with session management
             4. UI update scheduling on main thread
-            
+
         Session Management:
             - Creates new conversation session
             - Generates appropriate conversation metadata
             - Adds to conversation list with proper ordering
             - Automatically selects the new conversation
-            
+
         Error Handling:
             - Isolated error handling prevents app crashes
             - User notification for creation failures
             - Graceful degradation if session creation fails
-            
+
         The synchronous wrapper allows this method to be called
         from UI event handlers while performing complex async
         operations in the background.
@@ -2030,24 +2030,24 @@ class EnhancedChatScreen(MDScreen):
 
     def _get_provider_model_info(self):
         """Get current provider and model information with fallback handling.
-        
+
         This method safely retrieves model information for display purposes:
-        
+
         Information Retrieval:
             - Accesses chat manager's current provider and model
             - Formats information for user-friendly display
             - Provides meaningful fallbacks for missing data
-            
+
         Error Resilience:
             - Handles missing chat manager gracefully
             - Provides informative error messages
             - Maintains UI functionality even with missing data
-            
+
         Display Format:
             - Consistent "Provider: Model" format
             - Title case formatting for professional appearance
             - Fallback messages for error states
-            
+
         This information is used in multiple UI locations
         (toolbar, status cards) to keep users informed about
         the current AI model configuration.
@@ -2234,14 +2234,14 @@ class EnhancedChatScreen(MDScreen):
         """Remove conversation from UI (runs on main thread)."""
         try:
             conversation_id = conversation_data.get("id")
-            
+
             # Remove from active conversations
             if conversation_id in self.active_conversations:
                 del self.active_conversations[conversation_id]
 
             # Remove from chat list
             for widget in list(self.chat_list.children):
-                if (hasattr(widget, "conversation_data") and 
+                if (hasattr(widget, "conversation_data") and
                     widget.conversation_data.get("id") == conversation_id):
                     self.chat_list.remove_widget(widget)
                     break

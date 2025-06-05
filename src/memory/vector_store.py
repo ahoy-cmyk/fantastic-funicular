@@ -40,11 +40,11 @@ Technical Details:
 Example Usage:
     ```python
     store = VectorMemoryStore("./data/memories")
-    
+
     # Store a memory
     memory = Memory(content="Hello world", embedding=[0.1, 0.2, ...])
     memory_id = await store.store(memory)
-    
+
     # Search for similar memories
     results = await store.search("greeting", limit=5, threshold=0.7)
     ```
@@ -68,21 +68,21 @@ logger = setup_logger(__name__)
 
 class VectorMemoryStore(MemoryStore):
     """Vector database implementation of memory storage using ChromaDB.
-    
+
     Provides persistent vector storage with semantic search capabilities.
     Implements the MemoryStore protocol for use by MemoryManager.
-    
+
     Storage Organization:
         - One ChromaDB collection per memory type
         - Each collection has cosine similarity indexing
         - Persistent storage on local filesystem
-    
+
     Search Strategy:
         - Converts text queries to embeddings
         - Searches relevant collections in parallel
         - Ranks by similarity, importance, and recency
         - Caches results for repeated queries
-    
+
     Thread Safety:
         ChromaDB operations are thread-safe, but this class
         is designed for single-user access patterns.
@@ -94,17 +94,17 @@ class VectorMemoryStore(MemoryStore):
         Args:
             persist_directory: Directory to persist ChromaDB data.
                 Will be created if it doesn't exist.
-        
+
         Initialization:
             1. Create ChromaDB persistent client
             2. Create/connect to collections for each memory type
             3. Configure cosine similarity indexing
             4. Set up result caching
-        
+
         Collection Naming:
             Collections are named "neuromancer_{memory_type}" to avoid
             conflicts with other applications using the same directory.
-        
+
         Error Handling:
             Initialization failures raise exceptions as they indicate
             fundamental storage issues that must be resolved.
@@ -139,31 +139,31 @@ class VectorMemoryStore(MemoryStore):
 
     async def store(self, memory: Memory) -> str:
         """Store a memory in the vector database.
-        
+
         Stores a memory with its embedding and metadata in the appropriate
         collection based on memory type.
-        
+
         Args:
             memory: Memory object to store. Must have content and embedding.
-        
+
         Returns:
             Memory ID (UUID) assigned to the stored memory
-        
+
         Process:
             1. Generate ID if not provided
             2. Select appropriate collection by memory type
             3. Serialize metadata (convert lists to JSON)
             4. Store document, embedding, and metadata
             5. Clear search cache to ensure fresh results
-        
+
         Metadata Handling:
             List values are serialized to JSON strings for ChromaDB compatibility.
             This is reversed during retrieval to restore original types.
-        
+
         Error Handling:
             Storage failures are logged with full traceback and re-raised
             as they indicate serious storage issues.
-        
+
         Example:
             ```python
             memory = Memory(
@@ -231,19 +231,19 @@ class VectorMemoryStore(MemoryStore):
 
     async def retrieve(self, memory_id: str) -> Memory | None:
         """Retrieve a memory by ID.
-        
+
         Direct retrieval of a specific memory by its unique identifier.
-        
+
         Args:
             memory_id: UUID of the memory to retrieve
-        
+
         Returns:
             Memory object if found, None otherwise
-        
+
         Process:
             Searches across all collections since memory type is unknown.
             Returns the first match found.
-        
+
         Performance:
             Direct ID lookup is very fast (~1-5ms) as it doesn't require
             embedding comparison.
@@ -298,19 +298,19 @@ class VectorMemoryStore(MemoryStore):
         threshold: float = 0.7,
     ) -> list[Memory]:
         """Search memories by semantic similarity with caching.
-        
+
         Core search method that finds memories similar to the query text.
         Uses ChromaDB's vector similarity search with result caching.
-        
+
         Args:
             query: Natural language query to search for
             memory_type: Filter to specific memory type, None for all types
             limit: Maximum memories to return
             threshold: Minimum similarity score (0.0-1.0)
-        
+
         Returns:
             List of Memory objects sorted by relevance
-        
+
         Search Process:
             1. Check cache for identical query
             2. Determine collections to search
@@ -318,24 +318,24 @@ class VectorMemoryStore(MemoryStore):
             4. Filter by threshold and process results
             5. Sort by composite score
             6. Cache results
-        
+
         Similarity Scoring:
             ChromaDB returns cosine distances which are converted to
             similarities: similarity = 1 - distance
-        
+
         Ranking Algorithm:
             Composite score = similarity(40%) + importance(40%) + recency(20%)
             This balances relevance with importance and freshness.
-        
+
         Performance:
             - Cached queries: ~1-5ms
             - Fresh searches: ~50-200ms depending on collection size
             - Parallel collection search for multi-type queries
-        
+
         Error Handling:
             Collection errors are logged but don't stop the search.
             Returns empty list if all collections fail.
-        
+
         Example:
             ```python
             # Search specific type
@@ -345,7 +345,7 @@ class VectorMemoryStore(MemoryStore):
                 limit=5,
                 threshold=0.6
             )
-            
+
             # Search all types
             memories = await store.search("Python programming")
             ```
@@ -512,27 +512,27 @@ class VectorMemoryStore(MemoryStore):
 
     async def update(self, memory: Memory) -> bool:
         """Update an existing memory.
-        
+
         Modifies an existing memory in place, updating content, metadata,
         and access timestamp.
-        
+
         Args:
             memory: Memory object with updated information
-        
+
         Returns:
             True if update successful, False otherwise
-        
+
         Process:
             1. Update access timestamp
             2. Serialize metadata
             3. Handle embeddings carefully to avoid array errors
             4. Update in ChromaDB
             5. Clear search cache
-        
+
         Embedding Handling:
             Special care is taken with embeddings to avoid numpy array
             boolean evaluation errors that can occur with empty arrays.
-        
+
         Cache Invalidation:
             Clears the entire search cache as updated memories may
             affect many different search results.
@@ -588,19 +588,19 @@ class VectorMemoryStore(MemoryStore):
 
     async def delete(self, memory_id: str) -> bool:
         """Delete a memory by ID.
-        
+
         Permanently removes a memory from storage.
-        
+
         Args:
             memory_id: UUID of memory to delete
-        
+
         Returns:
             True if any collection reported successful deletion
-        
+
         Process:
             Attempts deletion from all collections since we don't
             know which one contains the memory.
-        
+
         Note:
             ChromaDB delete operations are idempotent - deleting
             a non-existent ID doesn't raise an error.
@@ -627,24 +627,24 @@ class VectorMemoryStore(MemoryStore):
 
     async def clear(self, memory_type: MemoryType | None = None) -> int:
         """Clear memories, optionally filtered by type.
-        
+
         Bulk deletion operation for memory management.
-        
+
         Args:
             memory_type: Type to clear, or None to clear all memories
-        
+
         Returns:
             Number of memories that were cleared
-        
+
         Process:
             1. Count existing memories
             2. Delete entire collections
             3. Recreate empty collections with same settings
-        
+
         Warning:
             This is a destructive operation that cannot be undone.
             Use with caution, especially when memory_type is None.
-        
+
         Collection Recreation:
             Collections are recreated with the same metadata (cosine similarity)
             to maintain consistent behavior after clearing.
@@ -694,31 +694,31 @@ class VectorMemoryStore(MemoryStore):
 
         Returns:
             List of Memory objects sorted by creation time (newest first)
-        
+
         Performance:
             ~10-50ms vs ~50-200ms for semantic search.
             Time scales linearly with collection size.
-        
+
         Pagination:
             Supports offset-based pagination for large datasets:
             - offset=0, limit=100: first 100 memories
             - offset=100, limit=100: next 100 memories
-        
+
         Error Handling:
             Collection errors are logged but don't stop retrieval.
             Continues with other collections if some fail.
-        
+
         Memory Handling:
             Special handling for embeddings to avoid numpy array
             evaluation errors during processing.
-        
+
         Example:
             ```python
             # Get all long-term memories
             memories = await store.get_all_memories(
                 memory_type=MemoryType.LONG_TERM
             )
-            
+
             # Paginated retrieval
             page1 = await store.get_all_memories(limit=50, offset=0)
             page2 = await store.get_all_memories(limit=50, offset=50)
@@ -819,25 +819,25 @@ class VectorMemoryStore(MemoryStore):
         memory_type: MemoryType,
     ) -> Memory:
         """Build a Memory object from ChromaDB results.
-        
+
         Reconstructs a Memory object from ChromaDB storage format,
         handling metadata deserialization and type conversion.
-        
+
         Args:
             id: Memory UUID
             document: Memory content text
             embedding: Vector embedding (may be None)
             metadata: Raw metadata from ChromaDB
             memory_type: Memory type for this memory
-        
+
         Returns:
             Reconstructed Memory object
-        
+
         Metadata Processing:
             - Extracts standard fields (created_at, importance, etc.)
             - Deserializes JSON strings back to lists
             - Preserves custom metadata fields
-        
+
         Type Safety:
             Handles missing metadata gracefully with sensible defaults.
             Uses current timestamp if dates are missing.

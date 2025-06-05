@@ -27,25 +27,25 @@ def setup_logger(name: str, level: str = None) -> logging.Logger:
         try:
             from src.core.config import config_manager
             level = config_manager.get("general.log_level", "INFO")
-            
+
             # Handle enum values from config
             if hasattr(level, 'value'):
                 level = level.value
             elif hasattr(level, 'name'):
                 level = level.name
-                
+
         except (ImportError, Exception):
             # Fallback to environment or default
             debug = os.getenv("DEBUG", "false").lower() == "true"
             level = "DEBUG" if debug else "INFO"
-    
+
     # Ensure level is a string and convert to logging level
     level = str(level).upper()
     numeric_level = getattr(logging, level, logging.INFO)
-    
+
     # Always update the logger level (in case config changed)
     logger.setLevel(numeric_level)
-    
+
     # Update existing handlers if they exist
     if logger.handlers:
         for handler in logger.handlers:
@@ -84,21 +84,21 @@ def setup_logger(name: str, level: str = None) -> logging.Logger:
 
 def update_log_level(level: str):
     """Update log level for all existing loggers.
-    
+
     Args:
         level: New log level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
     """
     numeric_level = getattr(logging, level.upper(), logging.INFO)
-    
+
     # Update root logger level
     logging.getLogger().setLevel(numeric_level)
-    
+
     # Update all loggers that start with 'src.' and their handlers
     for logger_name in list(logging.Logger.manager.loggerDict.keys()):
         if logger_name.startswith('src.'):
             logger = logging.getLogger(logger_name)
             logger.setLevel(numeric_level)
-            
+
             # Update handler levels too
             for handler in logger.handlers:
                 if isinstance(handler, RichHandler):  # Console handler
@@ -117,20 +117,20 @@ def refresh_all_loggers():
 
 def get_current_log_level() -> str:
     """Get the current log level.
-    
+
     Returns:
         Current log level as string
     """
     try:
         from src.core.config import config_manager
         level = config_manager.get("general.log_level", "INFO")
-        
+
         # Debug: Print the raw level value and its type
         # Note: Only do this once to avoid spam
         if not hasattr(get_current_log_level, '_debug_logged'):
             print(f"[DEBUG] Raw log level from config: {level} (type: {type(level)})")
             get_current_log_level._debug_logged = True
-        
+
         # Handle enum values from config
         if hasattr(level, 'value'):
             return level.value
@@ -138,7 +138,7 @@ def get_current_log_level() -> str:
             return level.name
         else:
             return str(level)
-            
+
     except (ImportError, Exception) as e:
         print(f"[DEBUG] Exception in get_current_log_level: {e}")
         return "INFO"
@@ -146,7 +146,7 @@ def get_current_log_level() -> str:
 
 def debug_logger_info() -> dict:
     """Get debug information about current loggers.
-    
+
     Returns:
         Dictionary with logger debug information
     """
@@ -156,7 +156,7 @@ def debug_logger_info() -> dict:
         "src_loggers": {},
         "total_loggers": len(logging.Logger.manager.loggerDict)
     }
-    
+
     # Get info about src loggers
     for logger_name in logging.Logger.manager.loggerDict:
         if logger_name.startswith('src.'):
@@ -167,11 +167,11 @@ def debug_logger_info() -> dict:
                     "type": type(handler).__name__,
                     "level": logging.getLevelName(handler.level)
                 })
-            
+
             info["src_loggers"][logger_name] = {
                 "level": logging.getLevelName(logger.level),
                 "handlers": handler_info,
                 "effective_level": logging.getLevelName(logger.getEffectiveLevel())
             }
-    
+
     return info

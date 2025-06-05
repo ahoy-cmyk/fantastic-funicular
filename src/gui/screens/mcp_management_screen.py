@@ -321,31 +321,35 @@ class MCPManagementScreen(MDScreen):
         if not self.chat_manager:
             return
 
-        # Use Kivy's async support
+        # Use a simpler approach with Clock.schedule_once
+        from kivy.clock import Clock
+        Clock.schedule_once(lambda dt: self._start_refresh_task(), 0)
+
+    def _start_refresh_task(self):
+        """Start the refresh task safely."""
         import asyncio
-
-        async def refresh_async():
-            await self._refresh_servers_async()
-
-        # Create a new task in a thread-safe way
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-
-        def run_async():
-            loop.run_until_complete(refresh_async())
-            loop.close()
-
         import threading
 
-        thread = threading.Thread(target=run_async)
-        thread.daemon = True
+        def run_refresh():
+            try:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                loop.run_until_complete(self._refresh_servers_async())
+                loop.close()
+            except Exception as e:
+                logger.error(f"Error in refresh task: {e}")
+
+        thread = threading.Thread(target=run_refresh, daemon=True)
         thread.start()
 
     async def _refresh_servers_async(self):
         """Async refresh of servers and tools."""
         try:
+            logger.info("Starting MCP screen refresh...")
+            
             # Get servers
             servers = await self.chat_manager.list_mcp_servers()
+            logger.info(f"Found {len(servers)} MCP servers: {[s.get('name', 'unnamed') for s in servers]}")
 
             # Update UI on main thread
             from kivy.clock import Clock
@@ -354,10 +358,13 @@ class MCPManagementScreen(MDScreen):
 
             # Get tools
             tools = await self.chat_manager.list_mcp_tools()
+            logger.info(f"Found {len(tools)} MCP tools")
             Clock.schedule_once(lambda dt: self._update_tools_ui(tools), 0)
 
         except Exception as e:
             logger.error(f"Error refreshing MCP data: {e}")
+            import traceback
+            logger.error(f"Refresh error traceback: {traceback.format_exc()}")
 
     def _update_servers_ui(self, servers):
         """Update the servers list UI."""

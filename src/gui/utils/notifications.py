@@ -57,10 +57,10 @@ class Toast:
                     Clock.schedule_once(lambda dt2: current_screen.remove_widget(toast_container), 0.3)
 
                 Clock.schedule_once(remove_toast, duration)
-            except Exception as e:
+            except Exception:
                 # Fallback to console logging if UI toast fails
                 print(f"Toast notification: {text}")
-        
+
         # Always schedule on main thread
         Clock.schedule_once(_show_on_main_thread, 0)
 
