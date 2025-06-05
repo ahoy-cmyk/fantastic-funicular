@@ -136,6 +136,7 @@ class MCPSubprocessClient(MCPServer):
 
             # Wait for response
             response = await self._receive_message()
+            logger.debug(f"Tool execution response: {response}")
 
             if response and "result" in response:
                 result = response["result"]
@@ -147,11 +148,8 @@ class MCPSubprocessClient(MCPServer):
                 )
             elif response and "error" in response:
                 error = response["error"]
-                return MCPResponse(
-                    success=False,
-                    result=None,
-                    error=f"{error.get('code', 'Unknown')}: {error.get('message', 'Unknown error')}",
-                )
+                error_msg = f"{error.get('code', 'Unknown')}: {error.get('message', 'Unknown error')}"
+                return MCPResponse(success=False, result=None, error=error_msg)
             else:
                 return MCPResponse(
                     success=False, result=None, error="Invalid response from MCP server"
@@ -218,6 +216,11 @@ class MCPSubprocessClient(MCPServer):
                     line_str = line.decode().strip()
                     if line_str:
                         return json.loads(line_str)
-            except (asyncio.TimeoutError, json.JSONDecodeError) as e:
-                logger.error(f"Error receiving message: {e}")
+            except asyncio.TimeoutError:
+                logger.error("Timeout waiting for MCP response")
+            except json.JSONDecodeError as e:
+                logger.error(f"Invalid JSON from MCP server: {e}")
+                logger.error(f"Raw response: {line_str}")
+            except Exception as e:
+                logger.error(f"Unexpected error receiving message: {e}")
         return {}
