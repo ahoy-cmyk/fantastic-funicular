@@ -459,7 +459,6 @@ class EnhancedChatScreen(MDScreen):
         # Add MCP tools test button
         tools_btn = MDIconButton(
             icon="tools",
-            tooltip_text="Test MCP Tools",
             on_release=self._show_tools_dialog,
         )
 
