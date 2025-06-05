@@ -2,8 +2,7 @@
 
 import asyncio
 import json
-import subprocess
-from typing import Any, Optional
+from typing import Any
 
 from src.mcp import MCPResponse, MCPServer, MCPTool, ToolType
 from src.utils.logger import setup_logger
@@ -25,7 +24,7 @@ class MCPSubprocessClient(MCPServer):
         self.command = command
         self.args = args
         self.name = name
-        self.process: Optional[asyncio.subprocess.Process] = None
+        self.process: asyncio.subprocess.Process | None = None
         self.tools: dict[str, MCPTool] = {}
         self._connected = False
 
@@ -40,7 +39,7 @@ class MCPSubprocessClient(MCPServer):
                 *self.args,
                 stdin=asyncio.subprocess.PIPE,
                 stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
+                stderr=asyncio.subprocess.PIPE,
             )
 
             # Give it time to initialize
@@ -53,19 +52,18 @@ class MCPSubprocessClient(MCPServer):
                 return False
 
             # Send handshake
-            await self._send_message({
-                "jsonrpc": "2.0",
-                "id": 1,
-                "method": "initialize",
-                "params": {
-                    "protocolVersion": "2024-11-05",
-                    "capabilities": {},
-                    "clientInfo": {
-                        "name": self.name,
-                        "version": "1.0.0"
-                    }
+            await self._send_message(
+                {
+                    "jsonrpc": "2.0",
+                    "id": 1,
+                    "method": "initialize",
+                    "params": {
+                        "protocolVersion": "2024-11-05",
+                        "capabilities": {},
+                        "clientInfo": {"name": self.name, "version": "1.0.0"},
+                    },
                 }
-            })
+            )
 
             # Wait for handshake response
             response = await self._receive_message()
@@ -127,15 +125,14 @@ class MCPSubprocessClient(MCPServer):
                 )
 
             # Send tool execution request
-            await self._send_message({
-                "jsonrpc": "2.0",
-                "id": 2,
-                "method": "tools/call",
-                "params": {
-                    "name": tool_name,
-                    "arguments": parameters
+            await self._send_message(
+                {
+                    "jsonrpc": "2.0",
+                    "id": 2,
+                    "method": "tools/call",
+                    "params": {"name": tool_name, "arguments": parameters},
                 }
-            })
+            )
 
             # Wait for response
             response = await self._receive_message()
@@ -146,20 +143,18 @@ class MCPSubprocessClient(MCPServer):
                     success=True,
                     result=result.get("content", []),
                     error=None,
-                    metadata={"toolCallId": result.get("toolCallId")}
+                    metadata={"toolCallId": result.get("toolCallId")},
                 )
             elif response and "error" in response:
                 error = response["error"]
                 return MCPResponse(
                     success=False,
                     result=None,
-                    error=f"{error.get('code', 'Unknown')}: {error.get('message', 'Unknown error')}"
+                    error=f"{error.get('code', 'Unknown')}: {error.get('message', 'Unknown error')}",
                 )
             else:
                 return MCPResponse(
-                    success=False,
-                    result=None,
-                    error="Invalid response from MCP server"
+                    success=False, result=None, error="Invalid response from MCP server"
                 )
 
         except Exception as e:
@@ -182,12 +177,9 @@ class MCPSubprocessClient(MCPServer):
         """Load available tools from the server."""
         try:
             # Request tool list
-            await self._send_message({
-                "jsonrpc": "2.0",
-                "id": 3,
-                "method": "tools/list",
-                "params": {}
-            })
+            await self._send_message(
+                {"jsonrpc": "2.0", "id": 3, "method": "tools/list", "params": {}}
+            )
 
             # Receive tool list
             response = await self._receive_message()
@@ -201,7 +193,7 @@ class MCPSubprocessClient(MCPServer):
                         description=tool_data["description"],
                         parameters=tool_data.get("inputSchema", {}).get("properties", {}),
                         tool_type=ToolType.FUNCTION,  # Assume function type
-                        server=f"{self.command} subprocess"
+                        server=f"{self.command} subprocess",
                     )
                     self.tools[tool.name] = tool
 
@@ -221,10 +213,7 @@ class MCPSubprocessClient(MCPServer):
         """Receive a message from the subprocess."""
         if self.process and self.process.stdout:
             try:
-                line = await asyncio.wait_for(
-                    self.process.stdout.readline(), 
-                    timeout=10.0
-                )
+                line = await asyncio.wait_for(self.process.stdout.readline(), timeout=10.0)
                 if line:
                     line_str = line.decode().strip()
                     if line_str:

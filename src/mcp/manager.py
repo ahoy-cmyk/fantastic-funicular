@@ -20,8 +20,14 @@ class MCPManager:
         self.tools_cache: dict[str, MCPTool] = {}
         self._lock = asyncio.Lock()
 
-    async def add_server(self, name: str, server_url: str = None, ssl_config: dict[str, Any] = None, 
-                         command: str = None, args: list[str] = None) -> bool:
+    async def add_server(
+        self,
+        name: str,
+        server_url: str = None,
+        ssl_config: dict[str, Any] = None,
+        command: str = None,
+        args: list[str] = None,
+    ) -> bool:
         """Add and connect to an MCP server.
 
         Args:
@@ -43,12 +49,16 @@ class MCPManager:
                 # Determine client type
                 if server_url:
                     # WebSocket MCP server
-                    client = MCPClient(server_url, name=f"neuromancer-{name}", ssl_config=ssl_config)
+                    client = MCPClient(
+                        server_url, name=f"neuromancer-{name}", ssl_config=ssl_config
+                    )
                 elif command and args:
                     # Subprocess MCP server
                     client = MCPSubprocessClient(command, args, name=f"neuromancer-{name}")
                 else:
-                    logger.error(f"Must provide either server_url or command+args for server '{name}'")
+                    logger.error(
+                        f"Must provide either server_url or command+args for server '{name}'"
+                    )
                     return False
 
                 # Connect to server
