@@ -2296,11 +2296,6 @@ class EnhancedChatScreen(MDScreen):
 
     def _show_tools_dialog(self, *args):
         """Show dialog with available MCP tools and execute selected tool."""
-        from kivymd.uix.dialog import MDDialog
-        from kivymd.uix.button import MDRaisedButton, MDTextButton
-        from kivymd.uix.list import MDList, OneLineListItem
-        from kivymd.uix.boxlayout import MDBoxLayout
-        from kivymd.uix.textfield import MDTextField
         import asyncio
         import threading
 
@@ -2313,6 +2308,7 @@ class EnhancedChatScreen(MDScreen):
             except Exception as e:
                 logger.error(f"Error in tools dialog: {e}")
                 from kivy.clock import Clock
+
                 Clock.schedule_once(
                     lambda dt: Notification.error(f"Failed to load MCP tools: {e}"), 0
                 )
@@ -2327,25 +2323,27 @@ class EnhancedChatScreen(MDScreen):
         try:
             # Get available tools
             tools = await self.chat_manager.list_mcp_tools()
-            
+
             def show_dialog(dt):
                 self._create_tools_dialog(tools)
-                
+
             Clock.schedule_once(show_dialog, 0)
-            
+
         except Exception as e:
             logger.error(f"Failed to get MCP tools: {e}")
+
             def show_error(dt):
                 Notification.error(f"Failed to load tools: {e}")
+
             Clock.schedule_once(show_error, 0)
 
     def _create_tools_dialog(self, tools):
         """Create and show the tools dialog."""
-        from kivymd.uix.dialog import MDDialog
-        from kivymd.uix.button import MDRaisedButton, MDTextButton
-        from kivymd.uix.list import MDList, OneLineListItem
         from kivymd.uix.boxlayout import MDBoxLayout
+        from kivymd.uix.button import MDRaisedButton, MDTextButton
+        from kivymd.uix.dialog import MDDialog
         from kivymd.uix.label import MDLabel
+        from kivymd.uix.list import MDList, OneLineListItem
 
         content = MDBoxLayout(orientation="vertical", size_hint_y=None, height=dp(400))
 
@@ -2383,9 +2381,7 @@ class EnhancedChatScreen(MDScreen):
             content_cls=content,
             buttons=[
                 MDTextButton(text="Close", on_release=self._close_tools_dialog),
-                MDRaisedButton(
-                    text="Refresh", on_release=lambda x: self._refresh_tools_dialog()
-                ),
+                MDRaisedButton(text="Refresh", on_release=lambda x: self._refresh_tools_dialog()),
             ],
             size_hint=(0.8, 0.8),
         )

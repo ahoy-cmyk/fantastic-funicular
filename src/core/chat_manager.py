@@ -117,6 +117,9 @@ class ChatManager:
         # Current session
         self.current_session: ConversationSession | None = None
         self._session_context = None
+        
+        # MCP servers to connect when event loop is available
+        self._pending_mcp_servers = None
 
         # System prompt configuration
         self.system_prompt = ""
@@ -235,15 +238,21 @@ class ChatManager:
             logger.info(f"Found {len(servers)} MCP server configurations")
 
             if auto_connect:
-                # Create a task to connect to servers asynchronously
-                import asyncio
-
-                asyncio.create_task(self._connect_mcp_servers(servers))
+                # Schedule connection for when event loop is available
+                self._pending_mcp_servers = servers
+                logger.info("MCP auto-connect scheduled for event loop startup")
             else:
                 logger.info("MCP auto-connect is disabled")
 
         except Exception as e:
             logger.error(f"Failed to initialize MCP servers: {e}")
+
+    async def connect_pending_mcp_servers(self):
+        """Connect any pending MCP servers when event loop is available."""
+        if self._pending_mcp_servers:
+            logger.info("Connecting pending MCP servers...")
+            await self._connect_mcp_servers(self._pending_mcp_servers)
+            self._pending_mcp_servers = None
 
     async def _connect_mcp_servers(self, servers: dict[str, dict[str, Any]]):
         """Connect to MCP servers asynchronously.
@@ -978,6 +987,9 @@ class ChatManager:
         self._session_context = self.session_manager.create_session(title, template_id)
         self.current_session = await self._session_context.__aenter__()
         logger.info(f"Created new session: {self.current_session.id}")
+        
+        # Connect any pending MCP servers now that we have an event loop
+        await self.connect_pending_mcp_servers()
 
     async def load_session(self, conversation_id: str):
         """Load an existing chat session.
@@ -1000,6 +1012,9 @@ class ChatManager:
         self._session_context = self.session_manager.load_session(conversation_id)
         self.current_session = await self._session_context.__aenter__()
         logger.info(f"Loaded session: {self.current_session.id}")
+        
+        # Connect any pending MCP servers now that we have an event loop
+        await self.connect_pending_mcp_servers()
 
     async def close_session(self):
         """Close the current session.
@@ -1324,14 +1339,16 @@ class ChatManager:
                 "\nYou can execute tools by responding with tool calls in this exact format:"
             )
             system_content += "\n```tool_call"
-            system_content += "\ntool_name: server:tool_name"
+            system_content += "\ntool_name: exa:web_search_exa"  # Use server:tool format
             system_content += "\nparameters:"
-            system_content += "\n  param1: value1"
-            system_content += "\n  param2: value2"
+            system_content += "\n  query: your search query"
+            system_content += "\n  num_results: 5"
             system_content += "\n```"
+            system_content += "\n\nIMPORTANT: Use the server:tool format exactly as shown below."
             system_content += "\n\nAvailable tools:"
-            for tool in tools:
-                system_content += f"\n- {tool.name}: {tool.description}"
+            for cached_name, tool in self.mcp_manager.tools_cache.items():
+                # cached_name is already in server:tool format like "exa:web_search_exa"
+                system_content += f"\n- {cached_name}: {tool.description}"
                 if tool.parameters:
                     params = ", ".join(tool.parameters.keys())
                     system_content += f" (params: {params})"
