@@ -37,8 +37,11 @@ Example Usage:
     ```
 """
 
+import json
 from datetime import datetime
 from typing import Any
+
+import yaml
 
 from src.core.config import settings
 from src.core.model_manager import ModelManager
@@ -534,16 +537,17 @@ class ChatManager:
 
         self.current_model = model_info.name
         self.current_provider = model_info.provider
-        
+
         # Save the last used model to config for persistence
         try:
             from src.core.config import settings
+
             settings._config.providers.last_used_model = model_info.name
             settings._cm.save()
             logger.debug(f"Saved last used model: {model_info.name}")
         except Exception as e:
             logger.warning(f"Failed to save last used model: {e}")
-        
+
         logger.info(f"Successfully switched to model: {model_info.full_name}")
         return True
 
@@ -1346,17 +1350,23 @@ class ChatManager:
         if tools:
             system_content += f"\n\nAvailable tools ({len(tools)}):"
             system_content += (
-                "\nWhen users ask for current information, recent data, or web searches, "
-                "you MUST use tools instead of your training data."
+                "\nWhen users ask for current information, recent data, or "
+                "web searches, you MUST use tools instead of your training data."
             )
-            system_content += "\n\nExecute tools by responding with tool calls in this EXACT format (include 'tool_name:'):"
+            system_content += (
+                "\n\nExecute tools by responding with tool calls in this "
+                "EXACT format (include 'tool_name:'):"
+            )
             system_content += "\n```tool_call"
             system_content += "\ntool_name: exa:web_search_exa"  # Use server:tool format
             system_content += "\nparameters:"
             system_content += "\n  query: your search query"
             system_content += "\n  num_results: 5"
             system_content += "\n```"
-            system_content += "\n\nCRITICAL: Always include 'tool_name:' prefix and use server:tool format exactly as shown!"
+            system_content += (
+                "\n\nCRITICAL: Always include 'tool_name:' prefix and use "
+                "server:tool format exactly as shown!"
+            )
             system_content += "\n\nAvailable tools:"
             for cached_name, tool in self.mcp_manager.tools_cache.items():
                 # cached_name is already in server:tool format like "exa:web_search_exa"
@@ -1948,8 +1958,10 @@ class ChatManager:
 
             # Log memory storage decisions
             logger.debug(
-                f"Memory storage - User: {user_importance:.2f} ({'stored' if user_importance >= 0.4 else 'skipped'}), "
-                f"Assistant: {assistant_importance:.2f} ({'stored' if assistant_importance >= 0.5 else 'skipped'}), "
+                f"Memory storage - User: {user_importance:.2f} "
+                f"({'stored' if user_importance >= 0.4 else 'skipped'}), "
+                f"Assistant: {assistant_importance:.2f} "
+                f"({'stored' if assistant_importance >= 0.5 else 'skipped'}), "
                 f"Pair: {pair_importance:.2f} ({'stored' if pair_importance >= 0.6 else 'skipped'})"
             )
 
@@ -2001,7 +2013,10 @@ class ChatManager:
             assistant_content[:200] + "..." if len(assistant_content) > 200 else assistant_content
         )
 
-        return f"Conversation exchange:\nUser asked: {user_summary}\nAssistant replied: {assistant_summary}"
+        return (
+            f"Conversation exchange:\nUser asked: {user_summary}\n"
+            f"Assistant replied: {assistant_summary}"
+        )
 
     def _calculate_importance(self, content: str) -> float:
         """Calculate importance score for content based on various factors.
@@ -2245,8 +2260,6 @@ class ChatManager:
         """
         import re
 
-        import yaml
-
         # Pattern to match tool call blocks (primary format)
         tool_call_pattern = r"```tool_call\n(.*?)\n```"
         matches = re.findall(tool_call_pattern, response_content, re.DOTALL)
@@ -2281,10 +2294,10 @@ class ChatManager:
                         match = tool_name_line + "\n" + "\n".join(rest_lines)
                         logger.debug(f"Modified tool call: {repr(match)}")
 
-                # Parse the YAML-like tool call specification
-                tool_spec = yaml.safe_load(match)
+                # Parse the tool call specification (handle multiple formats)
+                tool_spec = self._parse_tool_call(match)
 
-                if not isinstance(tool_spec, dict):
+                if not tool_spec:
                     continue
 
                 tool_name = tool_spec.get("tool_name")
@@ -2316,6 +2329,89 @@ class ChatManager:
                 modified_content = modified_content.replace(tool_block, error_text)
 
         return modified_content
+
+    def _parse_tool_call(self, match: str) -> dict | None:
+        """Parse tool call in multiple formats (YAML, JSON, or custom)."""
+        try:
+            # First try standard YAML parsing
+            tool_spec = yaml.safe_load(match)
+            if isinstance(tool_spec, dict) and "tool_name" in tool_spec:
+                return tool_spec
+        except yaml.YAMLError:
+            pass
+
+        # Try to parse manual format patterns
+        lines = match.strip().split("\n")
+        tool_name = None
+        parameters = {}
+
+        # Pattern 1: Extract tool name from first line
+        if lines:
+            first_line = lines[0].strip()
+
+            # Handle "tool_name: name" format
+            if first_line.startswith("tool_name:"):
+                tool_name = first_line.split(":", 1)[1].strip()
+            # Handle just the tool name on its own line (server:tool format)
+            elif not first_line.startswith(("parameters", "{")):
+                tool_name = first_line.strip()
+
+        if not tool_name:
+            logger.warning(f"Could not extract tool name from: {match[:100]}...")
+            return None
+
+        # Pattern 2: Extract parameters
+        param_text = ""
+        in_params = False
+
+        for line in lines[1:]:
+            line = line.strip()
+            if line.startswith("parameters:"):
+                in_params = True
+                param_line = line.split(":", 1)[1].strip()
+                if param_line:
+                    param_text += param_line + "\n"
+            elif in_params:
+                param_text += line + "\n"
+
+        # Try to parse parameters as JSON first
+        if param_text.strip():
+            try:
+                # Handle JSON format
+                if param_text.strip().startswith("{"):
+                    parameters = json.loads(param_text.strip())
+                else:
+                    # Try YAML format
+                    parameters = yaml.safe_load(param_text.strip()) or {}
+            except (json.JSONDecodeError, yaml.YAMLError) as e:
+                logger.warning(f"Could not parse parameters: {e}")
+                # Try to extract key-value pairs manually
+                parameters = self._extract_manual_params(param_text)
+
+        logger.debug(f"Parsed tool call: {tool_name} with params: {parameters}")
+        return {"tool_name": tool_name, "parameters": parameters}
+
+    def _extract_manual_params(self, param_text: str) -> dict:
+        """Extract parameters manually from text."""
+        params = {}
+        lines = param_text.strip().split("\n")
+
+        for line in lines:
+            line = line.strip()
+            if ":" in line and not line.startswith("#"):
+                key, value = line.split(":", 1)
+                key = key.strip()
+                value = value.strip().strip("\"'")
+
+                # Try to convert to appropriate type
+                if value.lower() in ("true", "false"):
+                    params[key] = value.lower() == "true"
+                elif value.isdigit():
+                    params[key] = int(value)
+                else:
+                    params[key] = value
+
+        return params
 
     async def _handle_streaming_with_tool_calls(self, original_generator, session_message_id: str):
         """Handle streaming response with potential tool calls.
