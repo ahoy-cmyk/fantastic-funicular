@@ -117,7 +117,7 @@ class ChatManager:
         # Current session
         self.current_session: ConversationSession | None = None
         self._session_context = None
-        
+
         # MCP servers to connect when event loop is available
         self._pending_mcp_servers = None
 
@@ -987,7 +987,7 @@ class ChatManager:
         self._session_context = self.session_manager.create_session(title, template_id)
         self.current_session = await self._session_context.__aenter__()
         logger.info(f"Created new session: {self.current_session.id}")
-        
+
         # Connect any pending MCP servers now that we have an event loop
         await self.connect_pending_mcp_servers()
 
@@ -1012,7 +1012,7 @@ class ChatManager:
         self._session_context = self.session_manager.load_session(conversation_id)
         self.current_session = await self._session_context.__aenter__()
         logger.info(f"Loaded session: {self.current_session.id}")
-        
+
         # Connect any pending MCP servers now that we have an event loop
         await self.connect_pending_mcp_servers()
 
@@ -1336,15 +1336,17 @@ class ChatManager:
         if tools:
             system_content += f"\n\nAvailable tools ({len(tools)}):"
             system_content += (
-                "\nYou can execute tools by responding with tool calls in this exact format:"
+                "\nWhen users ask for current information, recent data, or web searches, "
+                "you MUST use tools instead of your training data."
             )
+            system_content += "\n\nExecute tools by responding with tool calls in this EXACT format (include 'tool_name:'):"
             system_content += "\n```tool_call"
             system_content += "\ntool_name: exa:web_search_exa"  # Use server:tool format
             system_content += "\nparameters:"
             system_content += "\n  query: your search query"
             system_content += "\n  num_results: 5"
             system_content += "\n```"
-            system_content += "\n\nIMPORTANT: Use the server:tool format exactly as shown below."
+            system_content += "\n\nCRITICAL: Always include 'tool_name:' prefix and use server:tool format exactly as shown!"
             system_content += "\n\nAvailable tools:"
             for cached_name, tool in self.mcp_manager.tools_cache.items():
                 # cached_name is already in server:tool format like "exa:web_search_exa"
@@ -2235,9 +2237,19 @@ class ChatManager:
 
         import yaml
 
-        # Pattern to match tool call blocks
+        # Pattern to match tool call blocks (primary format)
         tool_call_pattern = r"```tool_call\n(.*?)\n```"
         matches = re.findall(tool_call_pattern, response_content, re.DOTALL)
+
+        # Also try alternative format: **Tool call: tool_name** with parameters
+        if not matches:
+            alt_pattern = r"\*\*Tool call: ([^*]+)\*\*.*?\*\*Parameters:\*\*\s*```([^`]+)```"
+            alt_matches = re.findall(alt_pattern, response_content, re.DOTALL | re.IGNORECASE)
+
+            # Convert alternative format to standard format
+            for tool_name, params in alt_matches:
+                tool_spec = f"tool_name: {tool_name.strip()}\nparameters:\n{params.strip()}"
+                matches.append(tool_spec)
 
         if not matches:
             return response_content
@@ -2246,6 +2258,18 @@ class ChatManager:
 
         for match in matches:
             try:
+                logger.debug(f"Raw tool call match: {repr(match)}")
+
+                # Handle case where tool name appears without "tool_name:" prefix
+                if match.strip() and not match.startswith("tool_name:"):
+                    lines = match.strip().split("\n")
+                    if lines and ":" not in lines[0]:
+                        # First line is likely the tool name without prefix
+                        tool_name_line = f"tool_name: {lines[0]}"
+                        rest_lines = lines[1:]
+                        match = tool_name_line + "\n" + "\n".join(rest_lines)
+                        logger.debug(f"Modified tool call: {repr(match)}")
+
                 # Parse the YAML-like tool call specification
                 tool_spec = yaml.safe_load(match)
 

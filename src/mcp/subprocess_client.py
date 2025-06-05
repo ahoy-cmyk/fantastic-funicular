@@ -120,7 +120,9 @@ class MCPSubprocessClient(MCPServer):
         async with self._execution_lock:  # Prevent concurrent executions
             try:
                 if not self._connected:
-                    return MCPResponse(success=False, result=None, error="Not connected to MCP server")
+                    return MCPResponse(
+                        success=False, result=None, error="Not connected to MCP server"
+                    )
 
                 if tool_name not in self.tools:
                     return MCPResponse(
@@ -153,7 +155,9 @@ class MCPSubprocessClient(MCPServer):
                     )
                 elif response and "error" in response:
                     error = response["error"]
-                    error_msg = f"{error.get('code', 'Unknown')}: {error.get('message', 'Unknown error')}"
+                    error_msg = (
+                        f"{error.get('code', 'Unknown')}: {error.get('message', 'Unknown error')}"
+                    )
                     return MCPResponse(success=False, result=None, error=error_msg)
                 else:
                     return MCPResponse(
@@ -217,13 +221,19 @@ class MCPSubprocessClient(MCPServer):
         """Receive a message from the subprocess."""
         if self.process and self.process.stdout:
             try:
-                line = await asyncio.wait_for(self.process.stdout.readline(), timeout=10.0)
+                # Increased timeout and added debugging
+                logger.debug("Waiting for MCP response...")
+                line = await asyncio.wait_for(self.process.stdout.readline(), timeout=15.0)
                 if line:
                     line_str = line.decode().strip()
+                    logger.debug(f"Received line: {line_str[:100]}...")
                     if line_str:
                         return json.loads(line_str)
             except asyncio.TimeoutError:
-                logger.error("Timeout waiting for MCP response")
+                logger.error("Timeout waiting for MCP response (15s)")
+                # Check if process is still alive
+                if self.process:
+                    logger.error(f"Process returncode: {self.process.returncode}")
             except json.JSONDecodeError as e:
                 logger.error(f"Invalid JSON from MCP server: {e}")
                 logger.error(f"Raw response: {line_str}")
