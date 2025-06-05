@@ -177,9 +177,7 @@ class SettingsScreen(MDScreen):
     def _configure_mcp(self, dialog):
         """Configure MCP servers."""
         dialog.dismiss()
-        from src.gui.utils.notifications import Notification
-
-        Notification.info("MCP configuration would open here - feature can be added as needed")
+        self.manager.current = "mcp_management"
 
     def open_api_settings(self, *args):
         """Open API key settings."""
@@ -239,7 +237,6 @@ class SettingsScreen(MDScreen):
         from kivymd.uix.button import MDFlatButton, MDRaisedButton
         from kivymd.uix.dialog import MDDialog
         from kivymd.uix.label import MDLabel
-        from kivymd.uix.selectioncontrol import MDCheckbox
 
         content = MDBoxLayout(
             orientation="vertical", spacing=dp(15), size_hint_y=None, height=dp(400)
@@ -249,26 +246,29 @@ class SettingsScreen(MDScreen):
 
         # Log Level Section
         log_section = MDBoxLayout(orientation="vertical", spacing=dp(10), adaptive_height=True)
-        log_section.add_widget(MDLabel(text="Logging", font_style="Subtitle1", adaptive_height=True))
-        
+        log_section.add_widget(
+            MDLabel(text="Logging", font_style="Subtitle1", adaptive_height=True)
+        )
+
         # Current log level
         from src.utils.logger import get_current_log_level
+
         current_level = get_current_log_level()
-        
+
         # Debug log the current level
         logger.info(f"Settings dialog opened - current log level from config: {current_level}")
-        
+
         self.current_level_label = MDLabel(
             text=f"Current log level: {current_level}",
             theme_text_color="Secondary",
-            adaptive_height=True
+            adaptive_height=True,
         )
         log_section.add_widget(self.current_level_label)
 
         # Log level buttons
         log_buttons = MDBoxLayout(orientation="horizontal", spacing=dp(5), adaptive_height=True)
         levels = ["ERROR", "WARNING", "INFO", "DEBUG"]
-        
+
         # Store buttons to set dialog reference later
         self._log_level_buttons = []
         for level in levels:
@@ -280,35 +280,39 @@ class SettingsScreen(MDScreen):
             btn.bind(on_release=self._on_log_level_button_press)
             self._log_level_buttons.append(btn)
             log_buttons.add_widget(btn)
-        
+
         log_section.add_widget(log_buttons)
         log_section.add_widget(
             MDLabel(
                 text="Higher levels show more detail but may impact performance",
                 theme_text_color="Hint",
                 font_style="Caption",
-                adaptive_height=True
+                adaptive_height=True,
             )
         )
         content.add_widget(log_section)
 
         # Performance Section
         perf_section = MDBoxLayout(orientation="vertical", spacing=dp(10), adaptive_height=True)
-        perf_section.add_widget(MDLabel(text="Performance", font_style="Subtitle1", adaptive_height=True))
-        
+        perf_section.add_widget(
+            MDLabel(text="Performance", font_style="Subtitle1", adaptive_height=True)
+        )
+
         # Performance tips
         perf_section.add_widget(
             MDLabel(
                 text="• Set log level to WARNING or ERROR for best performance\n• Enable caching in memory settings\n• Close unused chat sessions",
                 theme_text_color="Secondary",
-                adaptive_height=True
+                adaptive_height=True,
             )
         )
         content.add_widget(perf_section)
 
         # Paths Section
         paths_section = MDBoxLayout(orientation="vertical", spacing=dp(10), adaptive_height=True)
-        paths_section.add_widget(MDLabel(text="File Locations", font_style="Subtitle1", adaptive_height=True))
+        paths_section.add_widget(
+            MDLabel(text="File Locations", font_style="Subtitle1", adaptive_height=True)
+        )
 
         settings_info = [
             "Configuration file:",
@@ -336,10 +340,13 @@ class SettingsScreen(MDScreen):
             content_cls=content,
             buttons=[
                 MDFlatButton(text="Close", on_release=lambda x: advanced_dialog.dismiss()),
-                MDRaisedButton(text="Reset to Defaults", on_release=lambda x: self._reset_defaults(advanced_dialog))
+                MDRaisedButton(
+                    text="Reset to Defaults",
+                    on_release=lambda x: self._reset_defaults(advanced_dialog),
+                ),
             ],
         )
-        
+
         # Store dialog reference for log level buttons
         self._current_advanced_dialog = advanced_dialog
         advanced_dialog.open()
@@ -536,70 +543,72 @@ class SettingsScreen(MDScreen):
     def _on_log_level_button_press(self, button):
         """Handle log level button press."""
         level = button.level
-        dialog = getattr(self, '_current_advanced_dialog', None)
+        dialog = getattr(self, "_current_advanced_dialog", None)
         self._set_log_level(level, dialog)
 
     def _set_log_level(self, level: str, dialog):
         """Set the log level."""
         try:
             from src.core.config import config_manager
-            from src.utils.logger import update_log_level, refresh_all_loggers
             from src.gui.utils.notifications import Notification
-            
+            from src.utils.logger import refresh_all_loggers, update_log_level
+
             # Update configuration
             logger.info(f"Setting log level in config to: {level}")
             success = config_manager.set_sync("general.log_level", level)
             if not success:
                 logger.error("Failed to set log level in config")
                 return
-                
+
             # Force save the configuration
             config_manager.save()
             logger.info(f"Configuration saved with log level: {level}")
-            
+
             # Verify the setting took effect
             saved_level = config_manager.get("general.log_level")
             logger.info(f"Verified saved log level: {saved_level}")
-            
+
             # Update runtime loggers
             update_log_level(level)
-            
+
             # Refresh all existing loggers to respect new level
             refresh_all_loggers()
-            
+
             # Update the UI label if it exists
-            if hasattr(self, 'current_level_label'):
+            if hasattr(self, "current_level_label"):
                 self.current_level_label.text = f"Current log level: {level}"
-            
+
             if dialog:
                 dialog.dismiss()
             Notification.success(f"Log level set to {level}")
             logger.info(f"Log level changed to {level}")
-            
+
         except Exception as e:
             logger.error(f"Failed to set log level: {e}")
             from src.gui.utils.notifications import Notification
+
             Notification.error("Failed to update log level")
 
     def _reset_defaults(self, dialog):
         """Reset advanced settings to defaults."""
         try:
             from src.core.config import config_manager
-            from src.utils.logger import update_log_level
             from src.gui.utils.notifications import Notification
-            
+            from src.utils.logger import update_log_level
+
             # Reset log level to INFO
             config_manager.set("general.log_level", "INFO")
             config_manager.save()
             update_log_level("INFO")
-            
+
             dialog.dismiss()
             Notification.success("Advanced settings reset to defaults")
             logger.info("Advanced settings reset to defaults")
-            
+
         except Exception as e:
             logger.error(f"Failed to reset defaults: {e}")
             from src.gui.utils.notifications import Notification
+
             Notification.error("Failed to reset settings")
 
     @safe_dialog_operation

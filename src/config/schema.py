@@ -171,6 +171,15 @@ class MCPConfig(BaseModel):
         default_factory=dict, description="MCP server configurations"
     )
 
+    # SSL/TLS settings
+    ssl_verify: bool = Field(default=True, description="Verify SSL certificates")
+    ssl_ca_bundle: str | None = Field(
+        default=None, description="Path to CA bundle for SSL verification"
+    )
+    allow_self_signed: bool = Field(
+        default=False, description="Allow self-signed certificates (dev only)"
+    )
+
     # Connection settings
     connection_timeout: int = Field(default=10, description="Connection timeout in seconds", ge=1)
     reconnect_attempts: int = Field(default=3, description="Reconnection attempts", ge=0)
