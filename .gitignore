@@ -33,14 +33,6 @@ claude.md
 # Claude-generated documentation files
 *FIXES_SUMMARY.md
 *IMPLEMENTATION_SUMMARY.md
-ADVANCED_MEMORY_SYSTEM.md
-AMAZING_NEUROMANCER.md
-ASYNC_ISSUE_FIXED.md
-ENHANCED_CHAT_DEMO.md
-FUNCTIONALITY_STATUS.md
-HOW_TO_USE_*.md
-MEMORY_SYSTEM_VERIFICATION.md
-MESSAGE_CONTEXT_FIX.md
 
 # Application data
 .neuromancer/
@@ -241,41 +233,8 @@ cython_debug/
 #  refer to https://docs.cursor.com/context/ignore-files
 .cursorignore
 .cursorindexingignore
-UI_IMPROVEMENTS_SUMMARY.md
-CHAT_SWITCHING_FIX.md
-SYSTEM_PROMPT_IMPLEMENTATION.md
+# Test and debug files (already cleaned up)
 test_exa_real_key.py
 test_exa_debug.py
 test_exa_mcp.py
 test_exa_subprocess.py
-EXA_MCP_SOLUTION.md
-HTTPS_MCP_IMPLEMENTATION.md
-MCP_HTTPS_GUIDE.md
-analyze_mcp_remote.py
-mcp_stdio_bridge.py
-test_mcp_remote_websocket.py
-test_mcp_remote_solution.py
-test_mcp_https_complete.py
-test_bridge_connection.py
-test_gui_quick.py
-test_mcp_complete.py
-test_mcp_config.json
-test_mcp_functionality.py
-test_mcp_https.py
-test_mcp_integration.py
-test_mcp_server.py
-test_mcp_url_conversion.py
-test_mcp_with_server.py
-add_mcp_config.py
-test_system_prompt_tools.py
-test_realistic_chat_flow.py
-test_fixed_tool_calling.py
-test_model_persistence.py
-test_tool_call_execution.py
-test_yaml_parsing_fix.py
-debug_actual_usage.py
-test_simple_tool_button.py
-test_event_loop_fix.py
-test_direct_tool_simple.py
-test_final_verification.py
-test_format_parsing.py
