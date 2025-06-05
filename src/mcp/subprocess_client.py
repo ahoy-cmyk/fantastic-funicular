@@ -27,12 +27,16 @@ class MCPSubprocessClient(MCPServer):
         self.process: asyncio.subprocess.Process | None = None
         self.tools: dict[str, MCPTool] = {}
         self._connected = False
-        self._execution_lock = asyncio.Lock()
+        self._execution_lock = None  # Will be created with the event loop
         self._request_id = 0
 
     async def connect(self) -> bool:
         """Connect to the MCP server via subprocess."""
         try:
+            # Create lock with current event loop
+            if self._execution_lock is None:
+                self._execution_lock = asyncio.Lock()
+                
             logger.info(f"Starting MCP subprocess: {self.command} {' '.join(self.args)}")
 
             # Start subprocess
@@ -117,6 +121,10 @@ class MCPSubprocessClient(MCPServer):
 
     async def execute_tool(self, tool_name: str, parameters: dict[str, Any]) -> MCPResponse:
         """Execute a tool on the server."""
+        # Ensure lock exists
+        if self._execution_lock is None:
+            self._execution_lock = asyncio.Lock()
+            
         async with self._execution_lock:  # Prevent concurrent executions
             try:
                 if not self._connected:
@@ -215,7 +223,11 @@ class MCPSubprocessClient(MCPServer):
         if self.process and self.process.stdin:
             message_str = json.dumps(message) + "\n"
             self.process.stdin.write(message_str.encode())
-            await self.process.stdin.drain()
+            try:
+                await self.process.stdin.drain()
+            except RuntimeError as e:
+                # Handle event loop issues
+                logger.warning(f"Event loop issue in drain: {e}")
 
     async def _receive_message(self) -> dict[str, Any]:
         """Receive a message from the subprocess."""
@@ -223,7 +235,12 @@ class MCPSubprocessClient(MCPServer):
             try:
                 # Increased timeout and added debugging
                 logger.debug("Waiting for MCP response...")
-                line = await asyncio.wait_for(self.process.stdout.readline(), timeout=15.0)
+                # Ensure we use the current event loop
+                loop = asyncio.get_event_loop()
+                line = await asyncio.wait_for(
+                    self.process.stdout.readline(), 
+                    timeout=15.0
+                )
                 if line:
                     line_str = line.decode().strip()
                     logger.debug(f"Received line: {line_str[:100]}...")

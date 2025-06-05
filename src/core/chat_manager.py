@@ -534,6 +534,16 @@ class ChatManager:
 
         self.current_model = model_info.name
         self.current_provider = model_info.provider
+        
+        # Save the last used model to config for persistence
+        try:
+            from src.core.config import settings
+            settings._config.providers.last_used_model = model_info.name
+            settings._cm.save()
+            logger.debug(f"Saved last used model: {model_info.name}")
+        except Exception as e:
+            logger.warning(f"Failed to save last used model: {e}")
+        
         logger.info(f"Successfully switched to model: {model_info.full_name}")
         return True
 
@@ -2259,11 +2269,12 @@ class ChatManager:
         for match in matches:
             try:
                 logger.debug(f"Raw tool call match: {repr(match)}")
+                original_match = match  # Store original for replacement
 
                 # Handle case where tool name appears without "tool_name:" prefix
                 if match.strip() and not match.startswith("tool_name:"):
                     lines = match.strip().split("\n")
-                    if lines and ":" not in lines[0]:
+                    if lines and not lines[0].startswith(("tool_name:", "parameters:")):
                         # First line is likely the tool name without prefix
                         tool_name_line = f"tool_name: {lines[0]}"
                         rest_lines = lines[1:]
@@ -2294,13 +2305,13 @@ class ChatManager:
                     result_text = f"\n**Tool Error ({tool_name}):** {result.error}\n"
 
                 # Replace the tool call block with the result
-                tool_block = f"```tool_call\n{match}\n```"
+                tool_block = f"```tool_call\n{original_match}\n```"
                 modified_content = modified_content.replace(tool_block, result_text)
 
             except Exception as e:
                 logger.error(f"Error executing tool call: {e}")
                 # Replace with error message
-                tool_block = f"```tool_call\n{match}\n```"
+                tool_block = f"```tool_call\n{original_match}\n```"
                 error_text = f"\n**Tool Execution Error:** {str(e)}\n"
                 modified_content = modified_content.replace(tool_block, error_text)
 
