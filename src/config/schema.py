@@ -71,6 +71,9 @@ class ProviderConfig(BaseModel):
     model_selection: ModelSelectionStrategy = Field(
         default=ModelSelectionStrategy.MANUAL, description="How to select models"
     )
+    
+    # Last used model persistence
+    last_used_model: str | None = Field(default=None, description="Last used model name")
 
     # Ollama
     ollama_enabled: bool = Field(default=True, description="Enable Ollama provider")

@@ -33,19 +33,19 @@ Performance Considerations:
 Example Usage:
     ```python
     memory_manager = MemoryManager()
-    
+
     # Store a memory
     memory_id = await memory_manager.remember(
         "User's name is John Smith",
         memory_type=MemoryType.LONG_TERM,
         importance=0.9
     )
-    
+
     # Intelligent memory formation
     memory_ids = await memory_manager.intelligent_remember(
         "I prefer Python over Java for most projects"
     )
-    
+
     # Recall memories
     memories = await memory_manager.recall(
         "What is the user's name?",
@@ -68,10 +68,10 @@ logger = setup_logger(__name__)
 
 class MemoryManager:
     """Manages memory storage, retrieval, and optimization.
-    
+
     Central manager for all memory operations, providing high-level
     interfaces for memory formation, retrieval, and lifecycle management.
-    
+
     Attributes:
         store: Backend storage implementation (VectorMemoryStore)
         embedding_generator: Generates embeddings for semantic search
@@ -81,7 +81,7 @@ class MemoryManager:
         consolidation_interval: Time between consolidation runs (6h)
         _conversation_context: Recent conversation for context
         _max_context_length: Maximum context messages to keep (10)
-    
+
     Design Philosophy:
         The manager implements a human-like memory system with different
         types serving different purposes. Short-term memories capture
@@ -101,11 +101,11 @@ class MemoryManager:
                 VectorMemoryStore with default settings.
             embedding_generator: Generator for text embeddings. If not
                 provided, creates default EmbeddingGenerator.
-        
+
         Initialization:
             Sets up storage, embedding generation, and intelligent analysis
             components. Configures memory lifecycle parameters.
-        
+
         Note:
             Background tasks are started but not yet implemented.
             Future versions will include automatic consolidation.
@@ -128,7 +128,7 @@ class MemoryManager:
 
     def _start_background_tasks(self):
         """Start background memory management tasks.
-        
+
         Placeholder for future background task implementation.
         Will include:
             - Periodic memory consolidation
@@ -167,17 +167,17 @@ class MemoryManager:
 
         Returns:
             Memory ID (UUID string) or empty string on failure
-        
+
         Process:
             1. Generate embedding for semantic search
             2. Optionally classify type and importance
             3. Add formation metadata
             4. Store in backend
-        
+
         Error Handling:
             Failures are logged but don't raise exceptions.
             Returns empty string on failure to maintain flow.
-        
+
         Example:
             ```python
             # Manual classification
@@ -186,7 +186,7 @@ class MemoryManager:
                 memory_type=MemoryType.EPISODIC,
                 importance=0.7
             )
-            
+
             # Auto classification
             memory_id = await memory_manager.remember(
                 "Python is a high-level programming language",
@@ -268,26 +268,26 @@ class MemoryManager:
 
         Returns:
             List of memory IDs that were created (may be empty)
-        
+
         Analysis Process:
             1. Update conversation context
             2. Analyze content for memory signals
             3. Extract significant information
             4. Create memories with appropriate types
             5. Store with rich metadata
-        
+
         Memory Signals:
             The analyzer looks for:
             - Personal information (names, preferences)
             - Important facts or data
-            - Action items or commitments  
+            - Action items or commitments
             - Learning moments
             - Emotional significance
-        
+
         Significance Threshold:
             Only memories with significance >= 0.4 are stored
             to prevent memory pollution.
-        
+
         Example:
             ```python
             # Analyze a complex message
@@ -398,30 +398,30 @@ class MemoryManager:
 
         Returns:
             List of Memory objects sorted by relevance and importance
-        
+
         Search Strategy:
             1. Convert query to embedding
             2. Search specified memory types
             3. Filter by similarity threshold
             4. Sort by relevance and importance
             5. Update access timestamps
-        
+
         Personal Information Priority:
             Memories tagged as personal_info get +0.5 importance boost
             to ensure they surface in relevant queries.
-        
+
         Performance:
             - Single type search: ~50-100ms
             - All types search: ~100-200ms
             - Scales with memory count
-        
+
         Example:
             ```python
             # Search all memories
             memories = await memory_manager.recall(
                 "What is the user's name?"
             )
-            
+
             # Search specific types
             facts = await memory_manager.recall(
                 "Python features",
@@ -456,7 +456,7 @@ class MemoryManager:
                 if memory.metadata and memory.metadata.get("type") == "personal_info":
                     return (base_score[0] + 0.5, base_score[1])  # Add 0.5 to importance
                 return base_score
-            
+
             memories.sort(key=memory_priority, reverse=True)
 
             logger.info(f"Recalled {len(memories)} memories for query: {query[:50]}...")
@@ -468,26 +468,26 @@ class MemoryManager:
 
     async def consolidate(self):
         """Consolidate short-term memories into long-term storage.
-        
+
         Implements memory consolidation similar to human memory, where
         important short-term memories are converted to long-term storage
         while unimportant ones are forgotten.
-        
+
         Consolidation Rules:
             1. Short-term memories older than 24 hours are evaluated
             2. Importance >= 0.3: Converted to LONG_TERM
             3. Importance < 0.3: Deleted (forgotten)
-        
+
         Process:
             1. Query all SHORT_TERM memories
             2. Check age and importance
             3. Convert or delete based on rules
             4. Update metadata with consolidation timestamp
-        
+
         Design Rationale:
             This mimics human memory consolidation during sleep,
             where the brain decides what to keep long-term.
-        
+
         Note:
             Currently must be called manually. Future versions will
             run this automatically in the background.
@@ -537,12 +537,12 @@ class MemoryManager:
 
         Returns:
             True if successfully deleted, False otherwise
-        
+
         Use Cases:
             - User requests to forget information
             - Removing incorrect memories
             - Privacy compliance
-        
+
         Note:
             This is permanent deletion. The memory cannot be recovered.
         """
@@ -563,16 +563,16 @@ class MemoryManager:
 
         Returns:
             Number of memories cleared
-        
+
         Warning:
             This permanently deletes memories. Consider archiving
             important data before clearing.
-        
+
         Example:
             ```python
             # Clear only short-term memories
             count = await memory_manager.clear_memories(MemoryType.SHORT_TERM)
-            
+
             # Clear everything (dangerous!)
             count = await memory_manager.clear_memories()
             ```
@@ -594,11 +594,11 @@ class MemoryManager:
             - by_type: Count per memory type
             - avg_importance: Average importance score
             - storage_size: Approximate storage size
-        
+
         Usage:
             Useful for monitoring memory system health and usage patterns.
             Can help identify if consolidation or cleanup is needed.
-        
+
         Example:
             ```python
             stats = await memory_manager.get_memory_stats()
@@ -633,34 +633,31 @@ class MemoryManager:
             return {"error": str(e)}
 
     async def get_all_memories(
-        self, 
-        memory_type: MemoryType | None = None, 
-        limit: int = 100,
-        offset: int = 0
+        self, memory_type: MemoryType | None = None, limit: int = 100, offset: int = 0
     ) -> list[Memory]:
         """Get all memories efficiently without vector search.
-        
+
         Direct retrieval method for listing memories without semantic search.
         Useful for UI display, exports, and management operations.
-        
+
         Args:
             memory_type: Specific memory type to filter by, or None for all types
             limit: Maximum number of memories to return (default: 100)
             offset: Number of memories to skip for pagination (default: 0)
-            
+
         Returns:
             List of Memory objects sorted by creation time (newest first)
-        
+
         Performance:
             Much faster than semantic search as it bypasses embedding
             comparison. Use this for listing operations.
-        
+
         Pagination:
             Use limit and offset for paginated retrieval:
             - Page 1: limit=10, offset=0
             - Page 2: limit=10, offset=10
             - Page 3: limit=10, offset=20
-        
+
         Example:
             ```python
             # Get first 20 long-term memories
@@ -668,7 +665,7 @@ class MemoryManager:
                 memory_type=MemoryType.LONG_TERM,
                 limit=20
             )
-            
+
             # Get page 2 of all memories (items 51-100)
             page2 = await memory_manager.get_all_memories(
                 limit=50,
@@ -677,37 +674,37 @@ class MemoryManager:
             ```
         """
         try:
-            if hasattr(self.store, 'get_all_memories'):
+            if hasattr(self.store, "get_all_memories"):
                 # Use the efficient direct method if available
                 return await self.store.get_all_memories(memory_type, limit, offset)
             else:
                 # Fallback to search method (less efficient)
                 logger.warning("Using fallback search method for getting all memories")
                 return await self.recall("a", [memory_type] if memory_type else None, limit, 0.0)
-                
+
         except Exception as e:
             logger.error(f"Failed to get all memories: {e}")
             return []
 
     def _classify_memory_type(self, content: str, default_type: MemoryType) -> MemoryType:
         """Intelligently classify memory type based on content.
-        
+
         Analyzes content to determine the most appropriate memory type.
         Uses keyword matching and linguistic patterns.
-        
+
         Args:
             content: Text content to analyze
             default_type: Fallback type if classification is uncertain
-        
+
         Returns:
             Classified MemoryType
-        
+
         Classification Rules:
             - EPISODIC: Time-based events, experiences, conversations
             - SEMANTIC: Facts, definitions, concepts, procedures
             - LONG_TERM: Personal info, preferences, important data
             - SHORT_TERM: Everything else (default)
-        
+
         Algorithm:
             1. Convert to lowercase for matching
             2. Count keyword matches for each type
@@ -800,28 +797,28 @@ class MemoryManager:
 
     def _calculate_importance(self, content: str, default_importance: float) -> float:
         """Calculate importance score based on content analysis.
-        
+
         Sophisticated importance scoring based on multiple content signals.
-        
+
         Args:
             content: Text content to analyze
             default_importance: Base importance score to adjust
-        
+
         Returns:
             Importance score between 0.0 and 1.0
-        
+
         Scoring Components:
             - Importance keywords: +0.1 per match
             - Personal information: +0.15 per match
             - Content length: +0.2 max for detailed content
             - Structure (lists, steps): +0.1
-        
+
         Important Patterns:
             - Explicit importance markers ("important", "remember")
             - Personal data (names, contacts, preferences)
             - Structured information
             - Emotional significance
-        
+
         Design:
             Biased toward personal information and explicit requests
             to ensure critical data is retained.
@@ -889,13 +886,13 @@ class MemoryManager:
 
     def _analyze_content(self, content: str) -> dict[str, Any]:
         """Analyze content and extract useful metadata.
-        
+
         Comprehensive content analysis for rich metadata extraction.
         Used when auto_classify is enabled.
-        
+
         Args:
             content: Text to analyze
-        
+
         Returns:
             Metadata dictionary containing:
             - sentence_count: Number of sentences
@@ -905,7 +902,7 @@ class MemoryManager:
             - has_code: Contains code snippets
             - language_detected: Programming language or 'natural'
             - entities: Extracted entities (emails, phones, URLs)
-        
+
         Entity Extraction:
             - Email addresses
             - Phone numbers
@@ -942,15 +939,15 @@ class MemoryManager:
 
     def _detect_language_hints(self, content: str) -> str:
         """Detect programming language hints in content.
-        
+
         Identifies programming languages mentioned or demonstrated.
-        
+
         Args:
             content: Text to analyze
-        
+
         Returns:
             Detected language name or 'natural' for non-code
-        
+
         Supported Languages:
             - Python: 'def', 'import', '.py'
             - JavaScript: 'function', 'const', '.js'
@@ -978,20 +975,20 @@ class MemoryManager:
 
     def _extract_simple_entities(self, content: str) -> list[str]:
         """Extract simple entities like names, places, etc.
-        
+
         Basic entity extraction using regex patterns.
-        
+
         Args:
             content: Text to extract entities from
-        
+
         Returns:
             List of entity strings with type prefixes
-        
+
         Extracted Entities:
             - Emails: 'email:address@domain.com'
             - URLs: 'url:https://example.com'
             - Phone numbers: 'phone:123-456-7890'
-        
+
         Limitations:
             - Simple pattern matching only
             - No NER or advanced extraction
@@ -1021,19 +1018,19 @@ class MemoryManager:
 
     def _analyze_content_minimal(self, content: str) -> dict[str, Any]:
         """Minimal content analysis for speed.
-        
+
         Fast, lightweight analysis when performance is critical.
         Skips expensive operations like entity extraction.
-        
+
         Args:
             content: Text to analyze
-        
+
         Returns:
             Basic metadata with:
             - word_count: Number of words
             - has_questions: Contains '?'
             - has_code: Basic code detection
-        
+
         Performance:
             ~1-2ms vs ~10-20ms for full analysis
         """

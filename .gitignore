@@ -267,3 +267,15 @@ test_mcp_server.py
 test_mcp_url_conversion.py
 test_mcp_with_server.py
 add_mcp_config.py
+test_system_prompt_tools.py
+test_realistic_chat_flow.py
+test_fixed_tool_calling.py
+test_model_persistence.py
+test_tool_call_execution.py
+test_yaml_parsing_fix.py
+debug_actual_usage.py
+test_simple_tool_button.py
+test_event_loop_fix.py
+test_direct_tool_simple.py
+test_final_verification.py
+test_format_parsing.py

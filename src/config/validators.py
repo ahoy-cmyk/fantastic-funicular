@@ -39,7 +39,7 @@ class PathValidator(ConfigValidator):
         self.must_be_dir = must_be_dir
 
     def validate(self, value: Any) -> tuple[bool, str | None]:
-        if not isinstance(value, (str, Path)):
+        if not isinstance(value, str | Path):
             return False, "Value must be a string or Path"
 
         path = Path(value)
@@ -61,7 +61,7 @@ class RangeValidator(ConfigValidator):
         self.max_value = max_value
 
     def validate(self, value: Any) -> tuple[bool, str | None]:
-        if not isinstance(value, (int, float)):
+        if not isinstance(value, int | float):
             return False, "Value must be numeric"
 
         if self.min_value is not None and value < self.min_value:

@@ -116,12 +116,12 @@ class IntelligentMemoryAnalyzer:
         # Quick early returns for performance
         if not content_lower or len(content_lower) < 5:
             return signals
-        
+
         # Skip analysis for very common/short phrases that are unlikely to be memorable
         common_phrases = {"ok", "yes", "no", "sure", "thanks", "thank you", "hello", "hi", "bye"}
         if content_lower in common_phrases:
             return signals
-        
+
         # Skip if content is mostly punctuation or numbers
         if len([c for c in content_lower if c.isalpha()]) < len(content_lower) * 0.6:
             return signals
@@ -130,7 +130,7 @@ class IntelligentMemoryAnalyzer:
         signals.extend(self._extract_identity_info(content))
         if len(signals) >= 3:  # Early return if we found significant identity info
             return self._finalize_signals(signals, content, conversation_context)
-            
+
         signals.extend(self._extract_contact_info(content))
         signals.extend(self._extract_preferences(content))
         signals.extend(self._extract_goals_and_plans(content))
@@ -139,7 +139,9 @@ class IntelligentMemoryAnalyzer:
 
         return self._finalize_signals(signals, content, conversation_context)
 
-    def _finalize_signals(self, signals: list, content: str, conversation_context: list[str]) -> list:
+    def _finalize_signals(
+        self, signals: list, content: str, conversation_context: list[str]
+    ) -> list:
         """Finalize signals with contextual analysis and scoring."""
         # Apply contextual analysis only if we have some initial signals
         if signals:
@@ -149,7 +151,9 @@ class IntelligentMemoryAnalyzer:
 
             # Analyze overall conversation flow and significance
             if conversation_context:
-                signals.extend(self._analyze_conversation_significance(content, conversation_context))
+                signals.extend(
+                    self._analyze_conversation_significance(content, conversation_context)
+                )
 
         # Remove duplicates and merge related signals
         signals = self._deduplicate_and_merge_signals(signals)
@@ -440,7 +444,7 @@ class IntelligentMemoryAnalyzer:
         important_topics = ["name", "personal", "important", "remember", "family", "work", "goal"]
 
         context_text = " ".join(context[-3:]).lower()  # Last 3 messages
-        content_lower = content.lower()
+        content.lower()
 
         topic_matches = sum(1 for topic in important_topics if topic in context_text)
 

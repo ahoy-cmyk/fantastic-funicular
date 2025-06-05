@@ -37,8 +37,11 @@ Example Usage:
     ```
 """
 
+import json
 from datetime import datetime
 from typing import Any
+
+import yaml
 
 from src.core.config import settings
 from src.core.model_manager import ModelManager
@@ -117,6 +120,9 @@ class ChatManager:
         # Current session
         self.current_session: ConversationSession | None = None
         self._session_context = None
+
+        # MCP servers to connect when event loop is available
+        self._pending_mcp_servers = None
 
         # System prompt configuration
         self.system_prompt = ""
@@ -235,15 +241,21 @@ class ChatManager:
             logger.info(f"Found {len(servers)} MCP server configurations")
 
             if auto_connect:
-                # Create a task to connect to servers asynchronously
-                import asyncio
-
-                asyncio.create_task(self._connect_mcp_servers(servers))
+                # Schedule connection for when event loop is available
+                self._pending_mcp_servers = servers
+                logger.info("MCP auto-connect scheduled for event loop startup")
             else:
                 logger.info("MCP auto-connect is disabled")
 
         except Exception as e:
             logger.error(f"Failed to initialize MCP servers: {e}")
+
+    async def connect_pending_mcp_servers(self):
+        """Connect any pending MCP servers when event loop is available."""
+        if self._pending_mcp_servers:
+            logger.info("Connecting pending MCP servers...")
+            await self._connect_mcp_servers(self._pending_mcp_servers)
+            self._pending_mcp_servers = None
 
     async def _connect_mcp_servers(self, servers: dict[str, dict[str, Any]]):
         """Connect to MCP servers asynchronously.
@@ -525,6 +537,17 @@ class ChatManager:
 
         self.current_model = model_info.name
         self.current_provider = model_info.provider
+
+        # Save the last used model to config for persistence
+        try:
+            from src.core.config import settings
+
+            settings._config.providers.last_used_model = model_info.name
+            settings._cm.save()
+            logger.debug(f"Saved last used model: {model_info.name}")
+        except Exception as e:
+            logger.warning(f"Failed to save last used model: {e}")
+
         logger.info(f"Successfully switched to model: {model_info.full_name}")
         return True
 
@@ -698,7 +721,7 @@ class ChatManager:
             enhanced_messages = await self._build_rag_enhanced_messages(content, context)
 
             # Add user message to session with RAG metadata
-            user_msg = await self.current_session.add_message(
+            await self.current_session.add_message(
                 role=MessageRole.USER,
                 content=content,
                 metadata={
@@ -718,25 +741,33 @@ class ChatManager:
 
             response_content = ""
 
-            # Stream the response with RAG-enhanced context
+            # Stream the response with RAG-enhanced context and tool calling
             logger.info(
                 f"Starting RAG-enhanced stream with {len(enhanced_messages)} context messages"
             )
             chunk_count = 0
             try:
-                async for chunk in llm_provider.stream_complete(
+                # Create the original streaming generator
+                original_stream = llm_provider.stream_complete(
                     messages=enhanced_messages, model=model, temperature=0.7, max_tokens=1000
+                )
+
+                # Use the tool-calling aware streaming handler
+                async for chunk in self._handle_streaming_with_tool_calls(
+                    original_stream, assistant_msg.id
                 ):
                     chunk_count += 1
                     response_content += chunk
-                    # Update message periodically
-                    await self.current_session.update_message(
-                        assistant_msg.id, content=response_content
-                    )
+                    # Update message periodically (less frequently to avoid conflicts)
+                    if chunk_count % 5 == 0:  # Update every 5 chunks instead of every chunk
+                        await self.current_session.update_message(
+                            assistant_msg.id, content=response_content
+                        )
                     yield chunk  # Yield for UI streaming
 
                 logger.info(
-                    f"RAG stream completed with {chunk_count} chunks, total length: {len(response_content)}"
+                    f"RAG stream completed with {chunk_count} chunks, "
+                    f"total length: {len(response_content)}"
                 )
             except Exception as stream_error:
                 logger.error(
@@ -811,17 +842,20 @@ class ChatManager:
                 system_prompt=self.system_prompt if self.system_prompt_memory_integration else None,
             )
 
+            # Check for tool calls in response and execute them
+            final_response = await self._parse_and_execute_tool_calls(response)
+
             # Store response in session if we have one
             if self.current_session:
-                user_msg = await self.current_session.add_message(
+                await self.current_session.add_message(
                     role=MessageRole.USER,
                     content=content,
                     metadata={"rag_enabled": True, "memories_used": len(context.memories)},
                 )
 
-                assistant_msg = await self.current_session.add_message(
+                await self.current_session.add_message(
                     role=MessageRole.ASSISTANT,
-                    content=response,
+                    content=final_response,
                     model=model,
                     metadata={
                         "rag_enabled": True,
@@ -832,9 +866,9 @@ class ChatManager:
                 )
 
             # Store in memory for future retrieval
-            await self._store_conversation_memory(content, response)
+            await self._store_conversation_memory(content, final_response)
 
-            return response
+            return final_response
 
         except Exception as e:
             logger.error(f"RAG-enhanced message failed: {e}")
@@ -878,7 +912,11 @@ class ChatManager:
 
         # Add RAG context to system prompt
         if rag_context.memories:
-            system_content += "\n\n**IMPORTANT: You have access to the following relevant information from your memory. Use this information to answer the user's question accurately:**\n"
+            system_content += (
+                "\n\n**IMPORTANT: You have access to the following relevant information "
+                "from your memory. Use this information to answer the user's question "
+                "accurately:**\n"
+            )
 
             # Organize memories by type for better presentation
             personal_memories = []
@@ -904,7 +942,9 @@ class ChatManager:
                 system_content += "\n**Uploaded File Content:**\n"
                 for memory in file_memories:
                     file_name = memory.metadata.get("file_name", "uploaded file")
-                    system_content += f"- From {file_name}: {memory.content[:200]}{'...' if len(memory.content) > 200 else ''}\n"
+                    content_preview = memory.content[:200]
+                    suffix = "..." if len(memory.content) > 200 else ""
+                    system_content += f"- From {file_name}: {content_preview}{suffix}\n"
 
             # Add other relevant memories
             if other_memories:
@@ -914,7 +954,12 @@ class ChatManager:
                         f"- {memory.content[:150]}{'...' if len(memory.content) > 150 else ''}\n"
                     )
 
-            system_content += "\n**CRITICAL: Always use the above information to provide accurate answers. If the user asks about their name or personal details, refer to the Personal Information section. If they ask about uploaded files, refer to the Uploaded File Content section.**"
+            system_content += (
+                "\n**CRITICAL: Always use the above information to provide accurate answers. "
+                "If the user asks about their name or personal details, refer to the "
+                "Personal Information section. If they ask about uploaded files, refer to the "
+                "Uploaded File Content section.**"
+            )
 
         messages.append(Message(role="system", content=system_content))
 
@@ -957,6 +1002,9 @@ class ChatManager:
         self.current_session = await self._session_context.__aenter__()
         logger.info(f"Created new session: {self.current_session.id}")
 
+        # Connect any pending MCP servers now that we have an event loop
+        await self.connect_pending_mcp_servers()
+
     async def load_session(self, conversation_id: str):
         """Load an existing chat session.
 
@@ -978,6 +1026,9 @@ class ChatManager:
         self._session_context = self.session_manager.load_session(conversation_id)
         self.current_session = await self._session_context.__aenter__()
         logger.info(f"Loaded session: {self.current_session.id}")
+
+        # Connect any pending MCP servers now that we have an event loop
+        await self.connect_pending_mcp_servers()
 
     async def close_session(self):
         """Close the current session.
@@ -1104,7 +1155,7 @@ class ChatManager:
             context_messages.append(Message(role="user", content=content))
 
             # Add user message to session
-            user_msg = await self.current_session.add_message(
+            await self.current_session.add_message(
                 role=MessageRole.USER,
                 content=content,
                 metadata={
@@ -1121,23 +1172,31 @@ class ChatManager:
 
             response_content = ""
 
-            # Stream the response with full context
+            # Stream the response with full context and tool calling
             logger.info(f"Starting stream with {len(context_messages)} context messages")
             chunk_count = 0
             try:
-                async for chunk in llm_provider.stream_complete(
+                # Create the original streaming generator
+                original_stream = llm_provider.stream_complete(
                     messages=context_messages, model=model, temperature=0.7, max_tokens=1000
+                )
+
+                # Use the tool-calling aware streaming handler
+                async for chunk in self._handle_streaming_with_tool_calls(
+                    original_stream, assistant_msg.id
                 ):
                     chunk_count += 1
                     response_content += chunk
-                    # Update message periodically
-                    await self.current_session.update_message(
-                        assistant_msg.id, content=response_content
-                    )
+                    # Update message periodically (less frequently to avoid conflicts)
+                    if chunk_count % 5 == 0:  # Update every 5 chunks instead of every chunk
+                        await self.current_session.update_message(
+                            assistant_msg.id, content=response_content
+                        )
                     yield chunk  # Yield for UI streaming
 
                 logger.info(
-                    f"Stream completed with {chunk_count} chunks, total length: {len(response_content)}"
+                    f"Stream completed with {chunk_count} chunks, "
+                    f"total length: {len(response_content)}"
                 )
             except Exception as stream_error:
                 logger.error(f"Error during streaming (after {chunk_count} chunks): {stream_error}")
@@ -1214,14 +1273,19 @@ class ChatManager:
                 max_tokens=1000,
             )
 
-            # Add assistant message
-            assistant_msg = await self.current_session.add_message(
+            # Check for tool calls in response and execute them
+            final_content = await self._parse_and_execute_tool_calls(response.content)
+
+            # Add assistant message with potentially modified content
+            await self.current_session.add_message(
                 role=MessageRole.ASSISTANT,
-                content=response.content,
+                content=final_content,
                 model=model,
                 metadata={"parent_message_id": user_msg.id},
             )
 
+            # Return response with updated content
+            response.content = final_content
             return response
 
         except Exception as e:
@@ -1281,10 +1345,35 @@ class ChatManager:
                 for memory in memories:
                     system_content += f"- {memory.content}\n"
 
-        # Add available MCP tools
+        # Add available MCP tools with detailed descriptions
         tools = await self.mcp_manager.list_all_tools()
         if tools:
-            system_content += f"\n\nAvailable tools: {len(tools)}"
+            system_content += f"\n\nAvailable tools ({len(tools)}):"
+            system_content += (
+                "\nWhen users ask for current information, recent data, or "
+                "web searches, you MUST use tools instead of your training data."
+            )
+            system_content += (
+                "\n\nExecute tools by responding with tool calls in this "
+                "EXACT format (include 'tool_name:'):"
+            )
+            system_content += "\n```tool_call"
+            system_content += "\ntool_name: exa:web_search_exa"  # Use server:tool format
+            system_content += "\nparameters:"
+            system_content += "\n  query: your search query"
+            system_content += "\n  num_results: 5"
+            system_content += "\n```"
+            system_content += (
+                "\n\nCRITICAL: Always include 'tool_name:' prefix and use "
+                "server:tool format exactly as shown!"
+            )
+            system_content += "\n\nAvailable tools:"
+            for cached_name, tool in self.mcp_manager.tools_cache.items():
+                # cached_name is already in server:tool format like "exa:web_search_exa"
+                system_content += f"\n- {cached_name}: {tool.description}"
+                if tool.parameters:
+                    params = ", ".join(tool.parameters.keys())
+                    system_content += f" (params: {params})"
 
         messages.append(Message(role="system", content=system_content))
 
@@ -1553,14 +1642,20 @@ class ChatManager:
             # Add to servers
             servers[name] = server_config
 
-            # Save back to config
-            _config_manager.set("mcp.servers", servers)
-            _config_manager.save()
-
-            logger.info(f"Saved MCP server '{name}' to configuration")
+            # Save back to config using async method
+            success = await _config_manager.set("mcp.servers", servers)
+            if success:
+                # The config manager will auto-save if enabled, but let's ensure it's saved
+                _config_manager.save()
+                logger.info(f"Saved MCP server '{name}' to configuration")
+            else:
+                logger.error(f"Failed to set MCP server '{name}' in configuration")
 
         except Exception as e:
             logger.error(f"Failed to save MCP server '{name}' to config: {e}")
+            import traceback
+
+            logger.debug(f"Full error traceback: {traceback.format_exc()}")
 
     async def remove_mcp_server(self, name: str) -> bool:
         """Disconnect and remove an MCP server.
@@ -1591,14 +1686,19 @@ class ChatManager:
             if name in servers:
                 del servers[name]
 
-                # Save back to config
-                _config_manager.set("mcp.servers", servers)
-                _config_manager.save()
-
-                logger.info(f"Removed MCP server '{name}' from configuration")
+                # Save back to config using async method
+                success = await _config_manager.set("mcp.servers", servers)
+                if success:
+                    _config_manager.save()
+                    logger.info(f"Removed MCP server '{name}' from configuration")
+                else:
+                    logger.error(f"Failed to update configuration after removing server '{name}'")
 
         except Exception as e:
             logger.error(f"Failed to remove MCP server '{name}' from config: {e}")
+            import traceback
+
+            logger.debug(f"Full error traceback: {traceback.format_exc()}")
 
     async def check_mcp_health(self) -> dict[str, bool]:
         """Check health status of all MCP servers.
@@ -1858,8 +1958,10 @@ class ChatManager:
 
             # Log memory storage decisions
             logger.debug(
-                f"Memory storage - User: {user_importance:.2f} ({'stored' if user_importance >= 0.4 else 'skipped'}), "
-                f"Assistant: {assistant_importance:.2f} ({'stored' if assistant_importance >= 0.5 else 'skipped'}), "
+                f"Memory storage - User: {user_importance:.2f} "
+                f"({'stored' if user_importance >= 0.4 else 'skipped'}), "
+                f"Assistant: {assistant_importance:.2f} "
+                f"({'stored' if assistant_importance >= 0.5 else 'skipped'}), "
                 f"Pair: {pair_importance:.2f} ({'stored' if pair_importance >= 0.6 else 'skipped'})"
             )
 
@@ -1911,7 +2013,10 @@ class ChatManager:
             assistant_content[:200] + "..." if len(assistant_content) > 200 else assistant_content
         )
 
-        return f"Conversation exchange:\nUser asked: {user_summary}\nAssistant replied: {assistant_summary}"
+        return (
+            f"Conversation exchange:\nUser asked: {user_summary}\n"
+            f"Assistant replied: {assistant_summary}"
+        )
 
     def _calculate_importance(self, content: str) -> float:
         """Calculate importance score for content based on various factors.
@@ -2143,3 +2248,209 @@ class ChatManager:
             logger.debug(f"High importance content ({final_importance:.2f}): {content[:100]}...")
 
         return final_importance
+
+    async def _parse_and_execute_tool_calls(self, response_content: str) -> str:
+        """Parse tool calls from AI response and execute them.
+
+        Args:
+            response_content: The AI's response content that may contain tool calls
+
+        Returns:
+            Modified response content with tool results integrated
+        """
+        import re
+
+        # Pattern to match tool call blocks (primary format)
+        tool_call_pattern = r"```tool_call\n(.*?)\n```"
+        matches = re.findall(tool_call_pattern, response_content, re.DOTALL)
+
+        # Also try alternative format: **Tool call: tool_name** with parameters
+        if not matches:
+            alt_pattern = r"\*\*Tool call: ([^*]+)\*\*.*?\*\*Parameters:\*\*\s*```([^`]+)```"
+            alt_matches = re.findall(alt_pattern, response_content, re.DOTALL | re.IGNORECASE)
+
+            # Convert alternative format to standard format
+            for tool_name, params in alt_matches:
+                tool_spec = f"tool_name: {tool_name.strip()}\nparameters:\n{params.strip()}"
+                matches.append(tool_spec)
+
+        if not matches:
+            return response_content
+
+        modified_content = response_content
+
+        for match in matches:
+            try:
+                logger.debug(f"Raw tool call match: {repr(match)}")
+                original_match = match  # Store original for replacement
+
+                # Handle case where tool name appears without "tool_name:" prefix
+                if match.strip() and not match.startswith("tool_name:"):
+                    lines = match.strip().split("\n")
+                    if lines and not lines[0].startswith(("tool_name:", "parameters:")):
+                        # First line is likely the tool name without prefix
+                        tool_name_line = f"tool_name: {lines[0]}"
+                        rest_lines = lines[1:]
+                        match = tool_name_line + "\n" + "\n".join(rest_lines)
+                        logger.debug(f"Modified tool call: {repr(match)}")
+
+                # Parse the tool call specification (handle multiple formats)
+                tool_spec = self._parse_tool_call(match)
+
+                if not tool_spec:
+                    continue
+
+                tool_name = tool_spec.get("tool_name")
+                parameters = tool_spec.get("parameters", {})
+
+                if not tool_name:
+                    continue
+
+                logger.info(f"Executing MCP tool: {tool_name} with parameters: {parameters}")
+
+                # Execute the tool
+                result = await self.execute_mcp_tool(tool_name, parameters)
+
+                # Format the result
+                if result.success:
+                    result_text = f"\n**Tool Result ({tool_name}):**\n{result.result}\n"
+                else:
+                    result_text = f"\n**Tool Error ({tool_name}):** {result.error}\n"
+
+                # Replace the tool call block with the result
+                tool_block = f"```tool_call\n{original_match}\n```"
+                modified_content = modified_content.replace(tool_block, result_text)
+
+            except Exception as e:
+                logger.error(f"Error executing tool call: {e}")
+                # Replace with error message
+                tool_block = f"```tool_call\n{original_match}\n```"
+                error_text = f"\n**Tool Execution Error:** {str(e)}\n"
+                modified_content = modified_content.replace(tool_block, error_text)
+
+        return modified_content
+
+    def _parse_tool_call(self, match: str) -> dict | None:
+        """Parse tool call in multiple formats (YAML, JSON, or custom)."""
+        try:
+            # First try standard YAML parsing
+            tool_spec = yaml.safe_load(match)
+            if isinstance(tool_spec, dict) and "tool_name" in tool_spec:
+                return tool_spec
+        except yaml.YAMLError:
+            pass
+
+        # Try to parse manual format patterns
+        lines = match.strip().split("\n")
+        tool_name = None
+        parameters = {}
+
+        # Pattern 1: Extract tool name from first line
+        if lines:
+            first_line = lines[0].strip()
+
+            # Handle "tool_name: name" format
+            if first_line.startswith("tool_name:"):
+                tool_name = first_line.split(":", 1)[1].strip()
+            # Handle just the tool name on its own line (server:tool format)
+            elif not first_line.startswith(("parameters", "{")):
+                tool_name = first_line.strip()
+
+        if not tool_name:
+            logger.warning(f"Could not extract tool name from: {match[:100]}...")
+            return None
+
+        # Pattern 2: Extract parameters
+        param_text = ""
+        in_params = False
+
+        for line in lines[1:]:
+            line = line.strip()
+            if line.startswith("parameters:"):
+                in_params = True
+                param_line = line.split(":", 1)[1].strip()
+                if param_line:
+                    param_text += param_line + "\n"
+            elif in_params:
+                param_text += line + "\n"
+
+        # Try to parse parameters as JSON first
+        if param_text.strip():
+            try:
+                # Handle JSON format
+                if param_text.strip().startswith("{"):
+                    parameters = json.loads(param_text.strip())
+                else:
+                    # Try YAML format
+                    parameters = yaml.safe_load(param_text.strip()) or {}
+            except (json.JSONDecodeError, yaml.YAMLError) as e:
+                logger.warning(f"Could not parse parameters: {e}")
+                # Try to extract key-value pairs manually
+                parameters = self._extract_manual_params(param_text)
+
+        logger.debug(f"Parsed tool call: {tool_name} with params: {parameters}")
+        return {"tool_name": tool_name, "parameters": parameters}
+
+    def _extract_manual_params(self, param_text: str) -> dict:
+        """Extract parameters manually from text."""
+        params = {}
+        lines = param_text.strip().split("\n")
+
+        for line in lines:
+            line = line.strip()
+            if ":" in line and not line.startswith("#"):
+                key, value = line.split(":", 1)
+                key = key.strip()
+                value = value.strip().strip("\"'")
+
+                # Try to convert to appropriate type
+                if value.lower() in ("true", "false"):
+                    params[key] = value.lower() == "true"
+                elif value.isdigit():
+                    params[key] = int(value)
+                else:
+                    params[key] = value
+
+        return params
+
+    async def _handle_streaming_with_tool_calls(self, original_generator, session_message_id: str):
+        """Handle streaming response with potential tool calls.
+
+        Args:
+            original_generator: The original streaming generator
+            session_message_id: ID of the message to update
+
+        Yields:
+            Response chunks with tool results integrated
+        """
+        accumulated_content = ""
+
+        # Collect all chunks first
+        async for chunk in original_generator:
+            accumulated_content += chunk
+            yield chunk
+
+        # Check for tool calls after streaming is complete
+        if "```tool_call" in accumulated_content:
+            logger.info("Detected tool calls in response, executing...")
+
+            # Execute tool calls and get modified content
+            modified_content = await self._parse_and_execute_tool_calls(accumulated_content)
+
+            # If content was modified (tools were executed), update the message
+            if modified_content != accumulated_content:
+                if self.current_session and session_message_id:
+                    await self.current_session.update_message(
+                        session_message_id, content=modified_content
+                    )
+
+                # Yield the additional content (tool results)
+                additional_content = modified_content[len(accumulated_content) :]
+                if additional_content:
+                    # Stream the tool results
+                    for char in additional_content:
+                        yield char
+                        # Small delay to make tool results visible
+                        import asyncio
+
+                        await asyncio.sleep(0.01)

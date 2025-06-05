@@ -45,7 +45,11 @@ class Settings:
 
     @property
     def DEFAULT_MODEL(self) -> str:
-        # Get default model based on provider
+        # Use last used model if available
+        if self._config.providers.last_used_model:
+            return self._config.providers.last_used_model
+            
+        # Otherwise get default model based on provider
         provider = self._config.providers.default_provider
         if provider == "ollama" and self._config.providers.ollama_models:
             return self._config.providers.ollama_models[0]
